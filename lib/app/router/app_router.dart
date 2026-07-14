@@ -4,17 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/authentication/presentation/pages/login_page.dart';
+import '../../features/authentication/presentation/pages/register_page.dart';
 import '../../features/home/presentation/pages/home_page.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import 'route_names.dart';
 
-/// Provides the application's centralized router.
-///
-/// Keeping GoRouter in a provider makes it easier to:
-/// - add authentication redirects later;
-/// - override the router during testing;
-/// - observe authentication state through Riverpod.
 final appRouterProvider = Provider<GoRouter>((ref) {
   final router = GoRouter(
     initialLocation: RoutePaths.login,
@@ -25,6 +20,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: RouteNames.login,
         builder: (context, state) {
           return const LoginPage();
+        },
+      ),
+      GoRoute(
+        path: RoutePaths.register,
+        name: RouteNames.register,
+        builder: (context, state) {
+          return const RegisterPage();
         },
       ),
       GoRoute(

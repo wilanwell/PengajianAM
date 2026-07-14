@@ -8,17 +8,17 @@ import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../core/widgets/app_text_field.dart';
 import '../../domain/validators/auth_validators.dart';
-import '../controllers/login_controller.dart';
-import '../controllers/login_state.dart';
+import '../controllers/register_controller.dart';
+import '../controllers/register_state.dart';
 
-class LoginPage extends ConsumerStatefulWidget {
-  const LoginPage({super.key});
+class RegisterPage extends ConsumerStatefulWidget {
+  const RegisterPage({super.key});
 
   @override
-  ConsumerState<LoginPage> createState() => _LoginPageState();
+  ConsumerState<RegisterPage> createState() => _RegisterPageState();
 }
 
-class _LoginPageState extends ConsumerState<LoginPage> {
+class _RegisterPageState extends ConsumerState<RegisterPage> {
   final _formKey = GlobalKey<FormState>();
 
   void _submit() {
@@ -28,28 +28,26 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       return;
     }
 
-    ref.read(loginControllerProvider.notifier).login();
-  }
-
-  void _showTemporaryMessage(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    ref.read(registerControllerProvider.notifier).register();
   }
 
   @override
   Widget build(BuildContext context) {
-    final loginState = ref.watch(loginControllerProvider);
+    final registerState = ref.watch(registerControllerProvider);
+
+    final registerController = ref.read(registerControllerProvider.notifier);
+
     final textTheme = Theme.of(context).textTheme;
 
-    ref.listen<LoginState>(loginControllerProvider, (previous, next) {
-      if (previous?.status != LoginStatus.success &&
-          next.status == LoginStatus.success) {
+    ref.listen<RegisterState>(registerControllerProvider, (previous, next) {
+      if (previous?.status != RegisterStatus.success &&
+          next.status == RegisterStatus.success) {
         context.goNamed(RouteNames.home);
       }
     });
 
     return Scaffold(
+      appBar: AppBar(title: const Text('Daftar Akaun')),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -64,28 +62,29 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     children: [
                       Align(
                         child: Container(
-                          width: 96,
-                          height: 96,
+                          width: 88,
+                          height: 88,
                           decoration: const BoxDecoration(
                             color: AppColors.softBlue,
                             borderRadius: AppRadius.extraLarge,
                           ),
                           child: const Icon(
-                            Icons.menu_book_rounded,
-                            size: 52,
+                            Icons.person_add_alt_1_rounded,
+                            size: 46,
                             color: AppColors.primary,
                           ),
                         ),
                       ),
                       const SizedBox(height: AppSpacing.lg),
                       Text(
-                        'Pengajian AM STPM Objektif',
+                        'Cipta Akaun',
                         textAlign: TextAlign.center,
                         style: textTheme.headlineMedium,
                       ),
                       const SizedBox(height: AppSpacing.xs),
                       Text(
-                        'Belajar dengan fokus, skor dengan yakin.',
+                        'Daftar untuk menyimpan kemajuan, markah '
+                        'dan kedudukan anda.',
                         textAlign: TextAlign.center,
                         style: textTheme.bodyMedium?.copyWith(
                           color: AppColors.secondaryText,
@@ -102,85 +101,99 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Text(
-                              'Selamat Datang',
-                              style: textTheme.headlineSmall,
-                            ),
-                            const SizedBox(height: AppSpacing.xs),
-                            Text(
-                              'Log masuk untuk meneruskan pembelajaran anda.',
-                              style: textTheme.bodyMedium?.copyWith(
-                                color: AppColors.secondaryText,
+                            AppTextField(
+                              label: 'Nama',
+                              hint: 'Masukkan nama anda',
+                              textInputAction: TextInputAction.next,
+                              autofillHints: const [AutofillHints.name],
+                              enabled: !registerState.isLoading,
+                              prefixIcon: const Icon(
+                                Icons.person_outline_rounded,
                               ),
+                              validator: AuthValidators.name,
+                              onChanged: registerController.nameChanged,
                             ),
-                            const SizedBox(height: AppSpacing.lg),
+                            const SizedBox(height: AppSpacing.md),
                             AppTextField(
                               label: 'E-mel',
                               hint: 'Masukkan e-mel anda',
                               keyboardType: TextInputType.emailAddress,
                               textInputAction: TextInputAction.next,
                               autofillHints: const [AutofillHints.email],
-                              enabled: !loginState.isLoading,
+                              enabled: !registerState.isLoading,
                               prefixIcon: const Icon(Icons.email_outlined),
                               validator: AuthValidators.email,
-                              onChanged: ref
-                                  .read(loginControllerProvider.notifier)
-                                  .emailChanged,
+                              onChanged: registerController.emailChanged,
                             ),
                             const SizedBox(height: AppSpacing.md),
                             AppTextField(
                               label: 'Kata laluan',
-                              hint: 'Masukkan kata laluan anda',
-                              textInputAction: TextInputAction.done,
-                              autofillHints: const [AutofillHints.password],
-                              enabled: !loginState.isLoading,
-                              obscureText: !loginState.isPasswordVisible,
+                              hint: 'Minimum 6 aksara',
+                              textInputAction: TextInputAction.next,
+                              autofillHints: const [AutofillHints.newPassword],
+                              enabled: !registerState.isLoading,
+                              obscureText: !registerState.isPasswordVisible,
                               prefixIcon: const Icon(
                                 Icons.lock_outline_rounded,
                               ),
                               suffixIcon: IconButton(
-                                tooltip: loginState.isPasswordVisible
+                                tooltip: registerState.isPasswordVisible
                                     ? 'Sembunyikan kata laluan'
                                     : 'Paparkan kata laluan',
-                                onPressed: loginState.isLoading
+                                onPressed: registerState.isLoading
                                     ? null
-                                    : ref
-                                          .read(
-                                            loginControllerProvider.notifier,
-                                          )
+                                    : registerController
                                           .togglePasswordVisibility,
                                 icon: Icon(
-                                  loginState.isPasswordVisible
+                                  registerState.isPasswordVisible
                                       ? Icons.visibility_off_outlined
                                       : Icons.visibility_outlined,
                                 ),
                               ),
                               validator: AuthValidators.password,
-                              onChanged: ref
-                                  .read(loginControllerProvider.notifier)
-                                  .passwordChanged,
+                              onChanged: registerController.passwordChanged,
+                            ),
+                            const SizedBox(height: AppSpacing.md),
+                            AppTextField(
+                              label: 'Sahkan kata laluan',
+                              hint: 'Masukkan semula kata laluan',
+                              textInputAction: TextInputAction.done,
+                              enabled: !registerState.isLoading,
+                              obscureText:
+                                  !registerState.isConfirmPasswordVisible,
+                              prefixIcon: const Icon(Icons.lock_reset_rounded),
+                              suffixIcon: IconButton(
+                                tooltip: registerState.isConfirmPasswordVisible
+                                    ? 'Sembunyikan kata laluan'
+                                    : 'Paparkan kata laluan',
+                                onPressed: registerState.isLoading
+                                    ? null
+                                    : registerController
+                                          .toggleConfirmPasswordVisibility,
+                                icon: Icon(
+                                  registerState.isConfirmPasswordVisible
+                                      ? Icons.visibility_off_outlined
+                                      : Icons.visibility_outlined,
+                                ),
+                              ),
+                              validator: (value) {
+                                return AuthValidators.confirmPassword(
+                                  value,
+                                  registerState.password,
+                                );
+                              },
+                              onChanged:
+                                  registerController.confirmPasswordChanged,
                               onFieldSubmitted: (_) {
-                                if (!loginState.isLoading) {
+                                if (!registerState.isLoading) {
                                   _submit();
                                 }
                               },
                             ),
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: TextButton(
-                                onPressed: loginState.isLoading
-                                    ? null
-                                    : () {
-                                        _showTemporaryMessage(
-                                          'Fungsi lupa kata laluan akan '
-                                          'dibina kemudian.',
-                                        );
-                                      },
-                                child: const Text('Lupa kata laluan?'),
-                              ),
-                            ),
-                            if (loginState.status == LoginStatus.failure &&
-                                loginState.errorMessage != null) ...[
+                            if (registerState.status ==
+                                    RegisterStatus.failure &&
+                                registerState.errorMessage != null) ...[
+                              const SizedBox(height: AppSpacing.md),
                               Container(
                                 padding: AppSpacing.cardPadding,
                                 decoration: const BoxDecoration(
@@ -197,7 +210,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                     const SizedBox(width: AppSpacing.sm),
                                     Expanded(
                                       child: Text(
-                                        loginState.errorMessage!,
+                                        registerState.errorMessage!,
                                         style: textTheme.bodyMedium?.copyWith(
                                           color: AppColors.error,
                                         ),
@@ -206,11 +219,13 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                   ],
                                 ),
                               ),
-                              const SizedBox(height: AppSpacing.md),
                             ],
+                            const SizedBox(height: AppSpacing.lg),
                             FilledButton(
-                              onPressed: loginState.isLoading ? null : _submit,
-                              child: loginState.isLoading
+                              onPressed: registerState.isLoading
+                                  ? null
+                                  : _submit,
+                              child: registerState.isLoading
                                   ? const SizedBox(
                                       width: 22,
                                       height: 22,
@@ -223,33 +238,43 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                       mainAxisAlignment:
                                           MainAxisAlignment.center,
                                       children: [
-                                        Icon(Icons.login_rounded),
+                                        Icon(Icons.person_add_alt_1_rounded),
                                         SizedBox(width: AppSpacing.xs),
-                                        Text('Log Masuk'),
+                                        Text('Daftar Akaun'),
                                       ],
                                     ),
-                            ),
-                            const SizedBox(height: AppSpacing.sm),
-                            OutlinedButton.icon(
-                              onPressed: loginState.isLoading
-                                  ? null
-                                  : () {
-                                      context.pushNamed(RouteNames.register);
-                                    },
-                              icon: const Icon(Icons.person_add_alt_1_outlined),
-                              label: const Text('Daftar Akaun'),
                             ),
                           ],
                         ),
                       ),
                       const SizedBox(height: AppSpacing.lg),
-                      Text(
-                        'Dengan meneruskan, anda bersetuju dengan '
-                        'Terma Penggunaan dan Dasar Privasi.',
-                        textAlign: TextAlign.center,
-                        style: textTheme.bodySmall?.copyWith(
-                          color: AppColors.secondaryText,
-                        ),
+
+                      // Wrap digunakan supaya kandungan tidak overflow
+                      // pada skrin sempit atau apabila saiz teks dibesarkan.
+                      Wrap(
+                        alignment: WrapAlignment.center,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: AppSpacing.xxs,
+                        runSpacing: AppSpacing.xxs,
+                        children: [
+                          Text(
+                            'Sudah mempunyai akaun?',
+                            textAlign: TextAlign.center,
+                            style: textTheme.bodyMedium?.copyWith(
+                              color: AppColors.secondaryText,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: registerState.isLoading
+                                ? null
+                                : () {
+                                    registerController.reset();
+
+                                    context.goNamed(RouteNames.login);
+                                  },
+                            child: const Text('Log Masuk'),
+                          ),
+                        ],
                       ),
                     ],
                   ),
