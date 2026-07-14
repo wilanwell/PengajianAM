@@ -1,20 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/router/route_names.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_spacing.dart';
+import '../../../authentication/presentation/controllers/login_controller.dart';
 
 /// Temporary home page used to verify routing.
 ///
-/// The complete dashboard will later be separated into reusable
-/// feature-specific widgets.
-class HomePage extends StatelessWidget {
+/// This page will later be expanded into the complete home dashboard
+/// using smaller reusable widgets.
+class HomePage extends ConsumerWidget {
   const HomePage({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
@@ -24,6 +26,10 @@ class HomePage extends StatelessWidget {
           IconButton(
             tooltip: 'Log keluar',
             onPressed: () {
+              // Clear the current login form and authentication state.
+              ref.read(loginControllerProvider.notifier).reset();
+
+              // Return to the login page.
               context.goNamed(RouteNames.login);
             },
             icon: const Icon(Icons.logout_rounded),
@@ -44,6 +50,8 @@ class HomePage extends StatelessWidget {
               ),
             ),
             const SizedBox(height: AppSpacing.lg),
+
+            // Main semester card
             Container(
               padding: AppSpacing.largeCardPadding,
               decoration: const BoxDecoration(
@@ -77,6 +85,8 @@ class HomePage extends StatelessWidget {
               ),
             ),
             const SizedBox(height: AppSpacing.lg),
+
+            // Navigation success information card
             Container(
               padding: AppSpacing.cardPadding,
               decoration: BoxDecoration(

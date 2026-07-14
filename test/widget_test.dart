@@ -3,15 +3,17 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:pengajian_am_stpm_objektif/app/app.dart';
 
 void main() {
-  testWidgets('memaparkan halaman log masuk ketika aplikasi dibuka', (
-    tester,
-  ) async {
+  testWidgets('memaparkan borang log masuk', (tester) async {
     await tester.pumpWidget(const ProviderScope(child: App()));
 
     await tester.pumpAndSettle();
 
-    expect(find.text('Pengajian AM STPM Objektif'), findsOneWidget);
+    expect(find.text('Selamat Datang'), findsOneWidget);
 
-    expect(find.text('Masuk Sementara'), findsOneWidget);
+    expect(find.text('E-mel'), findsOneWidget);
+
+    expect(find.text('Kata laluan'), findsOneWidget);
+
+    expect(find.text('Log Masuk'), findsOneWidget);
   });
 }
