@@ -6,6 +6,11 @@ import 'package:go_router/go_router.dart';
 import '../../features/authentication/presentation/pages/login_page.dart';
 import '../../features/authentication/presentation/pages/register_page.dart';
 import '../../features/home/presentation/pages/home_page.dart';
+import '../../features/leaderboard/presentation/pages/leaderboard_page.dart';
+import '../../features/navigation/presentation/pages/main_navigation_page.dart';
+import '../../features/profile/presentation/pages/profile_page.dart';
+import '../../features/quiz/presentation/pages/quiz_hub_page.dart';
+import '../../features/topics/presentation/pages/topics_page.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import 'route_names.dart';
@@ -15,6 +20,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     initialLocation: RoutePaths.login,
     debugLogDiagnostics: kDebugMode,
     routes: [
+      // Routes outside the main bottom-navigation shell.
       GoRoute(
         path: RoutePaths.login,
         name: RouteNames.login,
@@ -29,12 +35,69 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           return const RegisterPage();
         },
       ),
-      GoRoute(
-        path: RoutePaths.home,
-        name: RouteNames.home,
-        builder: (context, state) {
-          return const HomePage();
+
+      // Main application navigation.
+      StatefulShellRoute.indexedStack(
+        builder: (context, state, navigationShell) {
+          return MainNavigationPage(navigationShell: navigationShell);
         },
+        branches: [
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: RoutePaths.home,
+                name: RouteNames.home,
+                builder: (context, state) {
+                  return const HomePage();
+                },
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: RoutePaths.topics,
+                name: RouteNames.topics,
+                builder: (context, state) {
+                  return const TopicsPage();
+                },
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: RoutePaths.quiz,
+                name: RouteNames.quiz,
+                builder: (context, state) {
+                  return const QuizHubPage();
+                },
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: RoutePaths.leaderboard,
+                name: RouteNames.leaderboard,
+                builder: (context, state) {
+                  return const LeaderboardPage();
+                },
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: RoutePaths.profile,
+                name: RouteNames.profile,
+                builder: (context, state) {
+                  return const ProfilePage();
+                },
+              ),
+            ],
+          ),
+        ],
       ),
     ],
     errorBuilder: (context, state) {

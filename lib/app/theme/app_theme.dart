@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'app_colors.dart';
 import 'app_radius.dart';
@@ -39,6 +40,7 @@ abstract final class AppTheme {
       textTheme: textTheme,
       visualDensity: VisualDensity.standard,
 
+      // App bar theme
       appBarTheme: AppBarTheme(
         backgroundColor: AppColors.primary,
         foregroundColor: AppColors.textOnPrimary,
@@ -49,8 +51,29 @@ abstract final class AppTheme {
           color: AppColors.textOnPrimary,
         ),
         iconTheme: const IconThemeData(color: AppColors.textOnPrimary),
+
+        // Controls the Android status bar and system navigation bar.
+        systemOverlayStyle: const SystemUiOverlayStyle(
+          // Status bar at the top of the phone.
+          statusBarColor: AppColors.primary,
+          statusBarIconBrightness: Brightness.light,
+
+          // Used mainly for iOS status-bar appearance.
+          statusBarBrightness: Brightness.dark,
+
+          // Android navigation area at the bottom of the phone.
+          systemNavigationBarColor: AppColors.surfaceMuted,
+          systemNavigationBarDividerColor: AppColors.border,
+
+          // Requests dark/grey system navigation icons.
+          systemNavigationBarIconBrightness: Brightness.dark,
+
+          // Prevent Android from adding an automatic contrast layer.
+          systemNavigationBarContrastEnforced: false,
+        ),
       ),
 
+      // Primary filled button
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           backgroundColor: AppColors.actionBlue,
@@ -67,6 +90,7 @@ abstract final class AppTheme {
         ),
       ),
 
+      // Secondary outlined button
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.actionBlue,
@@ -81,6 +105,7 @@ abstract final class AppTheme {
         ),
       ),
 
+      // Text button
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: AppColors.actionBlue,
@@ -92,6 +117,7 @@ abstract final class AppTheme {
         ),
       ),
 
+      // Form input theme
       inputDecorationTheme: const InputDecorationTheme(
         filled: true,
         fillColor: AppColors.surface,
@@ -125,25 +151,45 @@ abstract final class AppTheme {
         ),
       ),
 
-      navigationBarTheme: const NavigationBarThemeData(
+      // App bottom navigation bar
+      navigationBarTheme: NavigationBarThemeData(
         backgroundColor: AppColors.surface,
         indicatorColor: AppColors.softBlue,
         elevation: 0,
         height: 72,
+        iconTheme: WidgetStateProperty.resolveWith<IconThemeData>((states) {
+          if (states.contains(WidgetState.selected)) {
+            return const IconThemeData(color: AppColors.primary, size: 26);
+          }
+
+          return const IconThemeData(color: AppColors.secondaryText, size: 24);
+        }),
+        labelTextStyle: WidgetStateProperty.resolveWith<TextStyle>((states) {
+          if (states.contains(WidgetState.selected)) {
+            return AppTypography.labelSmall.copyWith(color: AppColors.primary);
+          }
+
+          return AppTypography.labelSmall.copyWith(
+            color: AppColors.secondaryText,
+          );
+        }),
       ),
 
+      // Divider
       dividerTheme: const DividerThemeData(
         color: AppColors.border,
         thickness: 1,
         space: 1,
       ),
 
+      // Progress indicator
       progressIndicatorTheme: const ProgressIndicatorThemeData(
         color: AppColors.actionBlue,
         linearTrackColor: AppColors.border,
         circularTrackColor: AppColors.border,
       ),
 
+      // Snack bar
       snackBarTheme: const SnackBarThemeData(
         backgroundColor: AppColors.primaryDark,
         contentTextStyle: TextStyle(color: AppColors.textOnPrimary),

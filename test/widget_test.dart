@@ -25,9 +25,6 @@ void main() {
 
     final registerButton = find.widgetWithText(OutlinedButton, 'Daftar Akaun');
 
-    expect(registerButton, findsOneWidget);
-
-    // Scroll sehingga butang benar-benar berada dalam kawasan skrin ujian.
     await tester.ensureVisible(registerButton);
     await tester.pumpAndSettle();
 
@@ -37,5 +34,50 @@ void main() {
     expect(find.text('Cipta Akaun'), findsOneWidget);
 
     expect(find.text('Sahkan kata laluan'), findsOneWidget);
+  });
+
+  testWidgets('log masuk dan menukar destination navigasi utama', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const ProviderScope(child: App()));
+
+    await tester.pumpAndSettle();
+
+    final textFields = find.byType(TextFormField);
+
+    expect(textFields, findsNWidgets(2));
+
+    await tester.enterText(textFields.at(0), 'student@email.com');
+
+    await tester.enterText(textFields.at(1), '123456');
+
+    final loginButton = find.widgetWithText(FilledButton, 'Log Masuk');
+
+    await tester.ensureVisible(loginButton);
+    await tester.pumpAndSettle();
+
+    await tester.tap(loginButton);
+    await tester.pump();
+
+    // Mock login uses a 600-millisecond delay.
+    await tester.pump(const Duration(milliseconds: 700));
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('Utama'), findsOneWidget);
+
+    expect(find.text('Topik'), findsOneWidget);
+
+    expect(find.text('Kuiz'), findsOneWidget);
+
+    expect(find.text('Ranking'), findsOneWidget);
+
+    expect(find.text('Profil'), findsOneWidget);
+
+    await tester.tap(find.text('Topik'));
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('Topik Pembelajaran'), findsOneWidget);
   });
 }
