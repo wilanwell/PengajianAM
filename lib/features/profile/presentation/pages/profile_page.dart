@@ -12,6 +12,7 @@ import '../../../leaderboard/presentation/controllers/leaderboard_controller.dar
 import '../../../quiz/presentation/controllers/quiz_session_controller.dart';
 import '../../../quiz/presentation/controllers/quiz_setup_controller.dart';
 import '../../../topics/presentation/controllers/topics_controller.dart';
+import '../../../progress/presentation/controllers/user_progress_controller.dart';
 import '../../domain/entities/student_profile.dart';
 import '../controllers/profile_controller.dart';
 import '../controllers/profile_state.dart';
@@ -161,12 +162,18 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     ref.read(quizSessionControllerProvider.notifier).reset();
     ref.read(leaderboardControllerProvider.notifier).reset();
     ref.read(profileControllerProvider.notifier).reset();
+    ref.read(userProgressControllerProvider.notifier).reset();
 
     context.goNamed(RouteNames.login);
   }
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(userProgressControllerProvider, (previous, next) {
+      ref
+          .read(profileControllerProvider.notifier)
+          .loadProfile(forceRefresh: true);
+    });
     final state = ref.watch(profileControllerProvider);
 
     final controller = ref.read(profileControllerProvider.notifier);

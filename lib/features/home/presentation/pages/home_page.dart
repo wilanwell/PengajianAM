@@ -6,6 +6,7 @@ import '../../../../app/router/route_names.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../authentication/presentation/controllers/login_controller.dart';
+import '../../../progress/presentation/controllers/user_progress_controller.dart';
 import '../../domain/entities/home_summary.dart';
 import '../controllers/home_controller.dart';
 import '../controllers/home_state.dart';
@@ -34,6 +35,7 @@ class _HomePageState extends ConsumerState<HomePage> {
   void _logout() {
     ref.read(loginControllerProvider.notifier).reset();
     ref.read(homeControllerProvider.notifier).reset();
+    ref.read(userProgressControllerProvider.notifier).reset();
 
     context.goNamed(RouteNames.login);
   }
@@ -44,6 +46,11 @@ class _HomePageState extends ConsumerState<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(userProgressControllerProvider, (previous, next) {
+      ref
+          .read(homeControllerProvider.notifier)
+          .loadDashboard(forceRefresh: true);
+    });
     final homeState = ref.watch(homeControllerProvider);
 
     return Scaffold(

@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../progress/domain/entities/user_progress.dart';
+import '../../../progress/presentation/controllers/user_progress_controller.dart';
 import '../../domain/entities/leaderboard_entry.dart';
 import '../../domain/entities/leaderboard_period.dart';
 import 'leaderboard_state.dart';
@@ -10,155 +12,119 @@ final leaderboardControllerProvider =
     );
 
 class LeaderboardController extends Notifier<LeaderboardState> {
-  static final List<LeaderboardEntry> _weeklyEntries =
-      List<LeaderboardEntry>.unmodifiable([
-        const LeaderboardEntry(
-          userId: 'user-01',
-          nickname: 'NotaNinja',
-          rank: 1,
-          previousRank: 2,
-          xp: 2450,
-        ),
-        const LeaderboardEntry(
-          userId: 'user-02',
-          nickname: 'FokusPA',
-          rank: 2,
-          previousRank: 1,
-          xp: 2260,
-        ),
-        const LeaderboardEntry(
-          userId: 'user-03',
-          nickname: 'StudyQueen',
-          rank: 3,
-          previousRank: 3,
-          xp: 2050,
-        ),
-        const LeaderboardEntry(
-          userId: 'user-04',
-          nickname: 'PerlembagaanPro',
-          rank: 4,
-          previousRank: 5,
-          xp: 1900,
-        ),
-        const LeaderboardEntry(
-          userId: 'current-user',
-          nickname: 'PelajarPA',
-          rank: 5,
-          previousRank: 7,
-          xp: 1820,
-          isCurrentUser: true,
-        ),
-        const LeaderboardEntry(
-          userId: 'user-06',
-          nickname: 'KedaulatanAce',
-          rank: 6,
-          previousRank: 4,
-          xp: 1700,
-        ),
-        const LeaderboardEntry(
-          userId: 'user-07',
-          nickname: 'TadbirUrusMaster',
-          rank: 7,
-          previousRank: 8,
-          xp: 1600,
-        ),
-        const LeaderboardEntry(
-          userId: 'user-08',
-          nickname: 'STPMCemerlang',
-          rank: 8,
-          previousRank: 6,
-          xp: 1490,
-        ),
-        const LeaderboardEntry(
-          userId: 'user-09',
-          nickname: 'SabahScholar',
-          rank: 9,
-          previousRank: 10,
-          xp: 1370,
-        ),
-        const LeaderboardEntry(
-          userId: 'user-10',
-          nickname: 'PAObjective',
-          rank: 10,
-          previousRank: 9,
-          xp: 1250,
-        ),
-      ]);
+  static const List<_LeaderboardSeed> _weeklySeeds = [
+    _LeaderboardSeed(
+      userId: 'user-01',
+      nickname: 'NotaNinja',
+      xp: 2450,
+      previousRank: 2,
+    ),
+    _LeaderboardSeed(
+      userId: 'user-02',
+      nickname: 'FokusPA',
+      xp: 2260,
+      previousRank: 1,
+    ),
+    _LeaderboardSeed(
+      userId: 'user-03',
+      nickname: 'StudyQueen',
+      xp: 2050,
+      previousRank: 3,
+    ),
+    _LeaderboardSeed(
+      userId: 'user-04',
+      nickname: 'PerlembagaanPro',
+      xp: 1900,
+      previousRank: 5,
+    ),
+    _LeaderboardSeed(
+      userId: 'user-06',
+      nickname: 'KedaulatanAce',
+      xp: 1700,
+      previousRank: 4,
+    ),
+    _LeaderboardSeed(
+      userId: 'user-07',
+      nickname: 'TadbirUrusMaster',
+      xp: 1600,
+      previousRank: 8,
+    ),
+    _LeaderboardSeed(
+      userId: 'user-08',
+      nickname: 'STPMCemerlang',
+      xp: 1490,
+      previousRank: 6,
+    ),
+    _LeaderboardSeed(
+      userId: 'user-09',
+      nickname: 'SabahScholar',
+      xp: 1370,
+      previousRank: 10,
+    ),
+    _LeaderboardSeed(
+      userId: 'user-10',
+      nickname: 'PAObjective',
+      xp: 1250,
+      previousRank: 9,
+    ),
+  ];
 
-  static final List<LeaderboardEntry> _monthlyEntries =
-      List<LeaderboardEntry>.unmodifiable([
-        const LeaderboardEntry(
-          userId: 'user-03',
-          nickname: 'StudyQueen',
-          rank: 1,
-          previousRank: 2,
-          xp: 8450,
-        ),
-        const LeaderboardEntry(
-          userId: 'user-01',
-          nickname: 'NotaNinja',
-          rank: 2,
-          previousRank: 1,
-          xp: 8120,
-        ),
-        const LeaderboardEntry(
-          userId: 'user-04',
-          nickname: 'PerlembagaanPro',
-          rank: 3,
-          previousRank: 4,
-          xp: 7750,
-        ),
-        const LeaderboardEntry(
-          userId: 'user-02',
-          nickname: 'FokusPA',
-          rank: 4,
-          previousRank: 3,
-          xp: 7380,
-        ),
-        const LeaderboardEntry(
-          userId: 'user-07',
-          nickname: 'TadbirUrusMaster',
-          rank: 5,
-          previousRank: 7,
-          xp: 6900,
-        ),
-        const LeaderboardEntry(
-          userId: 'current-user',
-          nickname: 'PelajarPA',
-          rank: 6,
-          previousRank: 8,
-          xp: 6540,
-          isCurrentUser: true,
-        ),
-        const LeaderboardEntry(
-          userId: 'user-06',
-          nickname: 'KedaulatanAce',
-          rank: 7,
-          previousRank: 5,
-          xp: 6280,
-        ),
-        const LeaderboardEntry(
-          userId: 'user-08',
-          nickname: 'STPMCemerlang',
-          rank: 8,
-          previousRank: 6,
-          xp: 5990,
-        ),
-        const LeaderboardEntry(
-          userId: 'user-09',
-          nickname: 'SabahScholar',
-          rank: 9,
-          previousRank: 10,
-          xp: 5500,
-        ),
-        const LeaderboardEntry(
-          userId: 'user-10',
-          nickname: 'PAObjective',
-          rank: 10,
-          previousRank: 9,
-          xp: 5100,
-        ),
-      ]);
+  static const List<_LeaderboardSeed> _monthlySeeds = [
+    _LeaderboardSeed(
+      userId: 'user-03',
+      nickname: 'StudyQueen',
+      xp: 8450,
+      previousRank: 2,
+    ),
+    _LeaderboardSeed(
+      userId: 'user-01',
+      nickname: 'NotaNinja',
+      xp: 8120,
+      previousRank: 1,
+    ),
+    _LeaderboardSeed(
+      userId: 'user-04',
+      nickname: 'PerlembagaanPro',
+      xp: 7750,
+      previousRank: 4,
+    ),
+    _LeaderboardSeed(
+      userId: 'user-02',
+      nickname: 'FokusPA',
+      xp: 7380,
+      previousRank: 3,
+    ),
+    _LeaderboardSeed(
+      userId: 'user-07',
+      nickname: 'TadbirUrusMaster',
+      xp: 6900,
+      previousRank: 7,
+    ),
+    _LeaderboardSeed(
+      userId: 'user-06',
+      nickname: 'KedaulatanAce',
+      xp: 6280,
+      previousRank: 5,
+    ),
+    _LeaderboardSeed(
+      userId: 'user-08',
+      nickname: 'STPMCemerlang',
+      xp: 5990,
+      previousRank: 6,
+    ),
+    _LeaderboardSeed(
+      userId: 'user-09',
+      nickname: 'SabahScholar',
+      xp: 5500,
+      previousRank: 10,
+    ),
+    _LeaderboardSeed(
+      userId: 'user-10',
+      nickname: 'PAObjective',
+      xp: 5100,
+      previousRank: 9,
+    ),
+  ];
 
   @override
   LeaderboardState build() {
@@ -184,12 +150,11 @@ class LeaderboardController extends Notifier<LeaderboardState> {
     );
 
     try {
-      await Future<void>.delayed(const Duration(milliseconds: 450));
+      await Future<void>.delayed(const Duration(milliseconds: 350));
 
-      final entries = switch (selectedPeriod) {
-        LeaderboardPeriod.weekly => _weeklyEntries,
-        LeaderboardPeriod.monthly => _monthlyEntries,
-      };
+      final progress = ref.read(userProgressControllerProvider);
+
+      final entries = _buildEntries(period: selectedPeriod, progress: progress);
 
       state = LeaderboardState(
         status: LeaderboardStatus.success,
@@ -217,4 +182,68 @@ class LeaderboardController extends Notifier<LeaderboardState> {
   void reset() {
     state = const LeaderboardState();
   }
+
+  List<LeaderboardEntry> _buildEntries({
+    required LeaderboardPeriod period,
+    required UserProgress progress,
+  }) {
+    final sourceSeeds = period == LeaderboardPeriod.weekly
+        ? _weeklySeeds
+        : _monthlySeeds;
+
+    final currentUserXp = period == LeaderboardPeriod.weekly
+        ? progress.weeklyXp
+        : progress.monthlyXp;
+
+    final currentUserPreviousRank = period == LeaderboardPeriod.weekly ? 7 : 8;
+
+    final seeds = <_LeaderboardSeed>[
+      ...sourceSeeds,
+      _LeaderboardSeed(
+        userId: progress.userId,
+        nickname: progress.displayName,
+        xp: currentUserXp,
+        previousRank: currentUserPreviousRank,
+        isCurrentUser: true,
+      ),
+    ];
+
+    seeds.sort((first, second) {
+      final xpComparison = second.xp.compareTo(first.xp);
+
+      if (xpComparison != 0) {
+        return xpComparison;
+      }
+
+      return first.nickname.compareTo(second.nickname);
+    });
+
+    return List<LeaderboardEntry>.unmodifiable([
+      for (var index = 0; index < seeds.length; index++)
+        LeaderboardEntry(
+          userId: seeds[index].userId,
+          nickname: seeds[index].nickname,
+          rank: index + 1,
+          xp: seeds[index].xp,
+          previousRank: seeds[index].previousRank,
+          isCurrentUser: seeds[index].isCurrentUser,
+        ),
+    ]);
+  }
+}
+
+class _LeaderboardSeed {
+  const _LeaderboardSeed({
+    required this.userId,
+    required this.nickname,
+    required this.xp,
+    required this.previousRank,
+    this.isCurrentUser = false,
+  });
+
+  final String userId;
+  final String nickname;
+  final int xp;
+  final int previousRank;
+  final bool isCurrentUser;
 }

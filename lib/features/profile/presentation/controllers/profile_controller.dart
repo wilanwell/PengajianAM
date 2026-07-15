@@ -1,5 +1,9 @@
+import 'dart:math' as math;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../progress/domain/entities/user_progress.dart';
+import '../../../progress/presentation/controllers/user_progress_controller.dart';
 import '../../domain/entities/profile_achievement.dart';
 import '../../domain/entities/student_profile.dart';
 import 'profile_state.dart';
@@ -8,42 +12,6 @@ final profileControllerProvider =
     NotifierProvider<ProfileController, ProfileState>(ProfileController.new);
 
 class ProfileController extends Notifier<ProfileState> {
-  static final List<ProfileAchievement> _mockAchievements =
-      List<ProfileAchievement>.unmodifiable([
-        const ProfileAchievement(
-          id: 'achievement-first-quiz',
-          type: AchievementType.firstQuiz,
-          title: 'Langkah Pertama',
-          description: 'Selesaikan kuiz pertama dalam aplikasi.',
-          progress: 1,
-          target: 1,
-        ),
-        const ProfileAchievement(
-          id: 'achievement-high-score',
-          type: AchievementType.highScore,
-          title: 'Skor Cemerlang',
-          description: 'Dapatkan sekurang-kurangnya 90% dalam satu kuiz.',
-          progress: 82,
-          target: 90,
-        ),
-        const ProfileAchievement(
-          id: 'achievement-streak',
-          type: AchievementType.sevenDayStreak,
-          title: 'Konsisten 7 Hari',
-          description: 'Belajar selama tujuh hari berturut-turut.',
-          progress: 4,
-          target: 7,
-        ),
-        const ProfileAchievement(
-          id: 'achievement-topic-master',
-          type: AchievementType.topicMaster,
-          title: 'Penguasa Topik',
-          description: 'Selesaikan semua topik Semester 1.',
-          progress: 3,
-          target: 7,
-        ),
-      ]);
-
   @override
   ProfileState build() {
     return const ProfileState();
@@ -62,34 +30,14 @@ class ProfileController extends Notifier<ProfileState> {
     );
 
     try {
-      await Future<void>.delayed(const Duration(milliseconds: 450));
+      await Future<void>.delayed(const Duration(milliseconds: 350));
 
-      final profile = StudentProfile(
-        userId: 'current-user',
-        displayName: 'PelajarPA',
-        email: 'pelajar@example.com',
-        semesterLabel: 'Semester 1',
-        joinedAt: DateTime(2026, 1, 10),
-        totalXp: 1820,
-        completedQuizzes: 8,
-        averageScore: 76.0,
-        completedTopics: 3,
-        totalTopics: 7,
-        currentStreakDays: 4,
-        bestStreakDays: 9,
-        weeklyAnsweredQuestions: List<int>.unmodifiable([
-          12,
-          18,
-          8,
-          24,
-          20,
-          30,
-          16,
-        ]),
-        achievements: _mockAchievements,
+      final progress = ref.read(userProgressControllerProvider);
+
+      state = ProfileState(
+        status: ProfileStatus.success,
+        profile: _buildStudentProfile(progress),
       );
-
-      state = ProfileState(status: ProfileStatus.success, profile: profile);
     } catch (_) {
       state = const ProfileState(
         status: ProfileStatus.failure,
@@ -99,25 +47,19 @@ class ProfileController extends Notifier<ProfileState> {
   }
 
   String? updateDisplayName(String value) {
-    final profile = state.profile;
+    final errorMessage = ref
+        .read(userProgressControllerProvider.notifier)
+        .updateDisplayName(value);
 
-    if (profile == null) {
-      return 'Maklumat profil belum tersedia.';
+    if (errorMessage != null) {
+      return errorMessage;
     }
 
-    final normalizedName = value.trim().replaceAll(RegExp(r'\s+'), ' ');
+    final progress = ref.read(userProgressControllerProvider);
 
-    if (normalizedName.length < 2) {
-      return 'Nama mestilah sekurang-kurangnya 2 aksara.';
-    }
-
-    if (normalizedName.length > 30) {
-      return 'Nama tidak boleh melebihi 30 aksara.';
-    }
-
-    state = state.copyWith(
-      profile: profile.copyWith(displayName: normalizedName),
-      clearErrorMessage: true,
+    state = ProfileState(
+      status: ProfileStatus.success,
+      profile: _buildStudentProfile(progress),
     );
 
     return null;
@@ -129,5 +71,63 @@ class ProfileController extends Notifier<ProfileState> {
 
   void reset() {
     state = const ProfileState();
+  }
+
+  StudentProfile _buildStudentProfile(UserProgress progress) {
+    return StudentProfile(
+      userId: progress.userId,
+      displayName: progress.displayName,
+      email: progress.email,
+      semesterLabel: progress.semesterLabel,
+      joinedAt: progress.joinedAt,
+      totalXp: progress.totalXp,
+      completedQuizzes: progress.completedQuizzes,
+      averageScore: progress.averageScore,
+      completedTopics: progress.completedTopics,
+      totalTopics: progress.totalTopics,
+      currentStreakDays: progress.currentStreakDays,
+      bestStreakDays: progress.bestStreakDays,
+      weeklyAnsweredQuestions: List<int>.unmodifiable(
+        progress.weeklyAnsweredQuestions,
+      ),
+      achievements: _buildAchievements(progress),
+    );
+  }
+
+  List<ProfileAchievement> _buildAchievements(UserProgress progress) {
+    return List<ProfileAchievement>.unmodifiable([
+      ProfileAchievement(
+        id: 'achievement-first-quiz',
+        type: AchievementType.firstQuiz,
+        title: 'Langkah Pertama',
+        description: 'Selesaikan kuiz pertama dalam aplikasi.',
+        progress: math.min(progress.completedQuizzes, 1),
+        target: 1,
+      ),
+      ProfileAchievement(
+        id: 'achievement-high-score',
+        type: AchievementType.highScore,
+        title: 'Skor Cemerlang',
+        description: 'Dapatkan sekurang-kurangnya 90% dalam satu kuiz.',
+        progress: math.min(progress.highestScore.round(), 90),
+        target: 90,
+      ),
+      ProfileAchievement(
+        id: 'achievement-streak',
+        type: AchievementType.sevenDayStreak,
+        title: 'Konsisten 7 Hari',
+        description: 'Belajar selama tujuh hari berturut-turut.',
+        progress: math.min(progress.currentStreakDays, 7),
+        target: 7,
+      ),
+      ProfileAchievement(
+        id: 'achievement-topic-master',
+        type: AchievementType.topicMaster,
+        title: 'Penguasa Topik',
+        description: 'Selesaikan semua topik Semester 1.',
+        progress: progress.completedTopics,
+        target: progress.totalTopics,
+      ),
+    ]);
   }
 }

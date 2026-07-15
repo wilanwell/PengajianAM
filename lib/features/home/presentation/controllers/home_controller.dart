@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../progress/domain/services/mock_rank_calculator.dart';
+import '../../../progress/presentation/controllers/user_progress_controller.dart';
 import '../../domain/entities/home_summary.dart';
 import 'home_state.dart';
 
@@ -23,24 +25,24 @@ class HomeController extends Notifier<HomeState> {
     state = state.copyWith(status: HomeStatus.loading, clearErrorMessage: true);
 
     try {
-      // Temporary delay to simulate loading data from a remote source.
-      // This will later be replaced by HomeRepository and Supabase.
-      await Future<void>.delayed(const Duration(milliseconds: 500));
+      await Future<void>.delayed(const Duration(milliseconds: 350));
 
-      const summary = HomeSummary(
-        displayName: 'Pelajar',
-        semesterLabel: 'Semester 1',
-        completedQuizzes: 8,
-        averageScore: 76,
-        totalXp: 1420,
-        weeklyRank: 7,
+      final progress = ref.read(userProgressControllerProvider);
+
+      final summary = HomeSummary(
+        displayName: progress.displayName,
+        semesterLabel: progress.semesterLabel,
+        completedQuizzes: progress.completedQuizzes,
+        averageScore: progress.averageScore,
+        totalXp: progress.totalXp,
+        weeklyRank: MockRankCalculator.weeklyRank(progress.weeklyXp),
         currentTopic: 'Negara Berdaulat',
         currentTopicProgress: 0.65,
-        completedTopics: 3,
-        totalTopics: 8,
+        completedTopics: progress.completedTopics,
+        totalTopics: progress.totalTopics,
       );
 
-      state = const HomeState(status: HomeStatus.success, summary: summary);
+      state = HomeState(status: HomeStatus.success, summary: summary);
     } catch (_) {
       state = const HomeState(
         status: HomeStatus.failure,

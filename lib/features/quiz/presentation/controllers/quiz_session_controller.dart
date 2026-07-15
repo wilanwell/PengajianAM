@@ -6,6 +6,7 @@ import '../../data/repositories/mock_quiz_repository.dart';
 import '../../domain/entities/quiz_mode.dart';
 import '../../domain/entities/quiz_result.dart';
 import '../../domain/repositories/quiz_repository.dart';
+import '../../../progress/presentation/controllers/user_progress_controller.dart';
 import 'quiz_session_state.dart';
 
 final quizRepositoryProvider = Provider<QuizRepository>(
@@ -191,6 +192,8 @@ class QuizSessionController extends Notifier<QuizSessionState> {
       elapsedTime: DateTime.now().difference(startedAt),
       autoSubmitted: autoSubmitted,
     );
+
+    ref.read(userProgressControllerProvider.notifier).recordQuizResult(result);
 
     state = state.copyWith(status: QuizSessionStatus.completed, result: result);
   }

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_spacing.dart';
+import '../../../progress/presentation/controllers/user_progress_controller.dart';
 import '../../domain/entities/leaderboard_entry.dart';
 import '../../domain/entities/leaderboard_period.dart';
 import '../controllers/leaderboard_controller.dart';
@@ -33,6 +34,11 @@ class _LeaderboardPageState extends ConsumerState<LeaderboardPage> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(userProgressControllerProvider, (previous, next) {
+      ref
+          .read(leaderboardControllerProvider.notifier)
+          .loadLeaderboard(forceRefresh: true);
+    });
     final state = ref.watch(leaderboardControllerProvider);
 
     final controller = ref.read(leaderboardControllerProvider.notifier);
