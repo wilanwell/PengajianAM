@@ -21,6 +21,7 @@ class QuizSetupController extends Notifier<QuizSetupState> {
 
     if (normalizedTopicId == null || normalizedTopicId.isEmpty) {
       state = state.copyWith(clearSelectedTopic: true);
+
       return;
     }
 
@@ -37,6 +38,14 @@ class QuizSetupController extends Notifier<QuizSetupState> {
     }
 
     state = state.copyWith(questionCount: count);
+  }
+
+  void applyDefaults({required QuizMode mode, required int questionCount}) {
+    if (!allowedQuestionCounts.contains(questionCount)) {
+      return;
+    }
+
+    state = state.copyWith(mode: mode, questionCount: questionCount);
   }
 
   void reset() {

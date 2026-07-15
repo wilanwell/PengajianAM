@@ -9,6 +9,8 @@ import '../../../../app/theme/app_spacing.dart';
 import '../../../topics/domain/entities/study_topic.dart';
 import '../../../topics/presentation/controllers/topics_controller.dart';
 import '../../../topics/presentation/controllers/topics_state.dart';
+import '../../../settings/presentation/controllers/app_settings_controller.dart';
+import '../../../settings/presentation/controllers/app_settings_state.dart';
 import '../../domain/entities/quiz_mode.dart';
 import '../controllers/quiz_setup_controller.dart';
 import '../controllers/quiz_setup_state.dart';
@@ -28,15 +30,31 @@ class _QuizHubPageState extends ConsumerState<QuizHubPage> {
   void initState() {
     super.initState();
 
-    Future<void>.microtask(() async {
-      await ref.read(topicsControllerProvider.notifier).loadTopics();
+    Future<void>.microtask(_initializeQuizHub);
+  }
 
-      if (widget.selectedTopicId != null) {
-        ref
-            .read(quizSetupControllerProvider.notifier)
-            .selectTopic(widget.selectedTopicId);
-      }
-    });
+  Future<void> _initializeQuizHub() async {
+    await Future.wait<void>([
+      ref.read(topicsControllerProvider.notifier).loadTopics(),
+      ref.read(appSettingsControllerProvider.notifier).loadSettings(),
+    ]);
+
+    if (!mounted) {
+      return;
+    }
+
+    final appSettingsState = ref.read(appSettingsControllerProvider);
+
+    final setupController = ref.read(quizSetupControllerProvider.notifier);
+
+    setupController.applyDefaults(
+      mode: appSettingsState.settings.defaultQuizMode,
+      questionCount: appSettingsState.settings.defaultQuestionCount,
+    );
+
+    if (widget.selectedTopicId != null) {
+      setupController.selectTopic(widget.selectedTopicId);
+    }
   }
 
   @override
@@ -76,6 +94,29 @@ class _QuizHubPageState extends ConsumerState<QuizHubPage> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<AppSettingsState>(appSettingsControllerProvider, (
+      previous,
+      next,
+    ) {
+      final previousSettings = previous?.settings;
+      final nextSettings = next.settings;
+
+      final settingsChanged =
+          previousSettings == null ||
+          previousSettings.defaultQuizMode != nextSettings.defaultQuizMode ||
+          previousSettings.defaultQuestionCount !=
+              nextSettings.defaultQuestionCount;
+
+      if (next.status == AppSettingsStatus.success && settingsChanged) {
+        ref
+            .read(quizSetupControllerProvider.notifier)
+            .applyDefaults(
+              mode: nextSettings.defaultQuizMode,
+              questionCount: nextSettings.defaultQuestionCount,
+            );
+      }
+    });
+
     final topicsState = ref.watch(topicsControllerProvider);
 
     final setupState = ref.watch(quizSetupControllerProvider);

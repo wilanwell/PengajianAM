@@ -291,6 +291,15 @@ class _ProfileContent extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.sm),
           _ProfileMenuTile(
+            icon: Icons.settings_rounded,
+            title: 'Tetapan',
+            subtitle: 'Tetapan kuiz dan pengurusan data tempatan',
+            onTap: () {
+              context.pushNamed(RouteNames.settings);
+            },
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _ProfileMenuTile(
             icon: Icons.info_outline_rounded,
             title: 'Tentang Aplikasi',
             subtitle: 'Maklumat versi dan tujuan aplikasi',
