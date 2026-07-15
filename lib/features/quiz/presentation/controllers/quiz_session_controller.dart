@@ -2,11 +2,13 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../progress/presentation/controllers/user_progress_controller.dart';
+import '../../../topics/presentation/controllers/topics_controller.dart';
 import '../../data/repositories/mock_quiz_repository.dart';
 import '../../domain/entities/quiz_mode.dart';
 import '../../domain/entities/quiz_result.dart';
 import '../../domain/repositories/quiz_repository.dart';
-import '../../../progress/presentation/controllers/user_progress_controller.dart';
+import 'quiz_history_controller.dart';
 import 'quiz_session_state.dart';
 
 final quizRepositoryProvider = Provider<QuizRepository>(
@@ -117,6 +119,10 @@ class QuizSessionController extends Notifier<QuizSessionState> {
   }
 
   void toggleFlagCurrentQuestion() {
+    if (state.status != QuizSessionStatus.ready) {
+      return;
+    }
+
     final question = state.currentQuestion;
 
     if (question == null) {
@@ -135,7 +141,9 @@ class QuizSessionController extends Notifier<QuizSessionState> {
   }
 
   void goToQuestion(int index) {
-    if (index < 0 || index >= state.questions.length) {
+    if (state.status != QuizSessionStatus.ready ||
+        index < 0 ||
+        index >= state.questions.length) {
       return;
     }
 
@@ -182,8 +190,23 @@ class QuizSessionController extends Notifier<QuizSessionState> {
 
     final startedAt = _startedAt ?? DateTime.now();
 
+    var topicCode = '';
+    var topicTitle = 'Topik Pengajian AM';
+
+    final topicsState = ref.read(topicsControllerProvider);
+
+    for (final topic in topicsState.topics) {
+      if (topic.id == state.topicId) {
+        topicCode = topic.code;
+        topicTitle = topic.title;
+        break;
+      }
+    }
+
     final result = QuizResult(
       topicId: state.topicId ?? '',
+      topicCode: topicCode,
+      topicTitle: topicTitle,
       mode: state.mode,
       questions: List.unmodifiable(state.questions),
       selectedAnswers: selectedAnswers,
@@ -193,9 +216,17 @@ class QuizSessionController extends Notifier<QuizSessionState> {
       autoSubmitted: autoSubmitted,
     );
 
+    final progressController = ref.read(
+      userProgressControllerProvider.notifier,
+    );
+
+    final earnedXp = progressController.calculateEarnedXp(result);
+
+    await progressController.recordQuizResult(result);
+
     await ref
-        .read(userProgressControllerProvider.notifier)
-        .recordQuizResult(result);
+        .read(quizHistoryControllerProvider.notifier)
+        .recordAttempt(result: result, earnedXp: earnedXp);
 
     state = state.copyWith(status: QuizSessionStatus.completed, result: result);
   }
@@ -203,6 +234,7 @@ class QuizSessionController extends Notifier<QuizSessionState> {
   void reset() {
     _cancelTimer();
     _startedAt = null;
+
     state = const QuizSessionState();
   }
 

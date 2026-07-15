@@ -7,6 +7,7 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../authentication/presentation/controllers/login_controller.dart';
 import '../../../progress/presentation/controllers/user_progress_controller.dart';
+import '../../../quiz/presentation/controllers/quiz_history_controller.dart';
 import '../../domain/entities/home_summary.dart';
 import '../controllers/home_controller.dart';
 import '../controllers/home_state.dart';
@@ -19,7 +20,9 @@ class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
 
   @override
-  ConsumerState<HomePage> createState() => _HomePageState();
+  ConsumerState<HomePage> createState() {
+    return _HomePageState();
+  }
 }
 
 class _HomePageState extends ConsumerState<HomePage> {
@@ -27,15 +30,17 @@ class _HomePageState extends ConsumerState<HomePage> {
   void initState() {
     super.initState();
 
-    Future<void>.microtask(
-      () => ref.read(homeControllerProvider.notifier).loadDashboard(),
-    );
+    Future<void>.microtask(() {
+      ref.read(homeControllerProvider.notifier).loadDashboard();
+    });
   }
 
   void _logout() {
     ref.read(loginControllerProvider.notifier).reset();
     ref.read(homeControllerProvider.notifier).reset();
+    ref.read(quizHistoryControllerProvider.notifier).reset();
 
+    // UserProgress dan sejarah tersimpan tidak dipadamkan.
     context.goNamed(RouteNames.login);
   }
 
@@ -50,6 +55,7 @@ class _HomePageState extends ConsumerState<HomePage> {
           .read(homeControllerProvider.notifier)
           .loadDashboard(forceRefresh: true);
     });
+
     final homeState = ref.watch(homeControllerProvider);
 
     return Scaffold(

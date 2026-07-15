@@ -9,10 +9,11 @@ import '../../../../app/theme/app_spacing.dart';
 import '../../../authentication/presentation/controllers/login_controller.dart';
 import '../../../home/presentation/controllers/home_controller.dart';
 import '../../../leaderboard/presentation/controllers/leaderboard_controller.dart';
+import '../../../progress/presentation/controllers/user_progress_controller.dart';
+import '../../../quiz/presentation/controllers/quiz_history_controller.dart';
 import '../../../quiz/presentation/controllers/quiz_session_controller.dart';
 import '../../../quiz/presentation/controllers/quiz_setup_controller.dart';
 import '../../../topics/presentation/controllers/topics_controller.dart';
-import '../../../progress/presentation/controllers/user_progress_controller.dart';
 import '../../domain/entities/student_profile.dart';
 import '../controllers/profile_controller.dart';
 import '../controllers/profile_state.dart';
@@ -104,6 +105,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       );
   }
 
+  void _openQuizHistory() {
+    context.pushNamed(RouteNames.quizHistory);
+  }
+
   void _showAboutApplication() {
     showAboutDialog(
       context: context,
@@ -116,8 +121,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       ),
       children: const [
         Text(
-          'Aplikasi latihan objektif untuk membantu pelajar '
-          'mengulang kaji Pengajian AM STPM.',
+          'Aplikasi latihan objektif untuk membantu '
+          'pelajar mengulang kaji Pengajian AM STPM.',
         ),
       ],
     );
@@ -130,8 +135,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         return AlertDialog(
           title: const Text('Log Keluar?'),
           content: const Text(
-            'Anda perlu log masuk semula untuk menggunakan '
-            'aplikasi.',
+            'Anda perlu log masuk semula untuk '
+            'menggunakan aplikasi.',
           ),
           actions: [
             TextButton(
@@ -160,9 +165,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     ref.read(topicsControllerProvider.notifier).reset();
     ref.read(quizSetupControllerProvider.notifier).reset();
     ref.read(quizSessionControllerProvider.notifier).reset();
+    ref.read(quizHistoryControllerProvider.notifier).reset();
     ref.read(leaderboardControllerProvider.notifier).reset();
     ref.read(profileControllerProvider.notifier).reset();
 
+    // UserProgress tidak dipadamkan supaya data local
+    // kekal selepas pengguna log keluar.
     context.goNamed(RouteNames.login);
   }
 
@@ -173,6 +181,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           .read(profileControllerProvider.notifier)
           .loadProfile(forceRefresh: true);
     });
+
     final state = ref.watch(profileControllerProvider);
 
     final controller = ref.read(profileControllerProvider.notifier);
@@ -205,6 +214,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     onEditName: () {
                       _editDisplayName(state.profile!);
                     },
+                    onOpenQuizHistory: _openQuizHistory,
                     onShowAbout: _showAboutApplication,
                     onLogout: _logout,
                   ),
@@ -219,6 +229,7 @@ class _ProfileContent extends StatelessWidget {
     required this.profile,
     required this.onRefresh,
     required this.onEditName,
+    required this.onOpenQuizHistory,
     required this.onShowAbout,
     required this.onLogout,
   });
@@ -226,6 +237,7 @@ class _ProfileContent extends StatelessWidget {
   final StudentProfile profile;
   final Future<void> Function() onRefresh;
   final VoidCallback onEditName;
+  final VoidCallback onOpenQuizHistory;
   final VoidCallback onShowAbout;
   final VoidCallback onLogout;
 
@@ -248,8 +260,8 @@ class _ProfileContent extends StatelessWidget {
           Text('Pencapaian', style: textTheme.titleLarge),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            'Lengkapkan aktiviti pembelajaran untuk membuka '
-            'lebih banyak pencapaian.',
+            'Lengkapkan aktiviti pembelajaran untuk '
+            'membuka lebih banyak pencapaian.',
             style: textTheme.bodyMedium?.copyWith(
               color: AppColors.secondaryText,
             ),
@@ -261,6 +273,13 @@ class _ProfileContent extends StatelessWidget {
           ],
           const SizedBox(height: AppSpacing.md),
           Text('Akaun dan Aplikasi', style: textTheme.titleLarge),
+          const SizedBox(height: AppSpacing.sm),
+          _ProfileMenuTile(
+            icon: Icons.history_rounded,
+            title: 'Sejarah Kuiz',
+            subtitle: 'Lihat keputusan dan percubaan terdahulu',
+            onTap: onOpenQuizHistory,
+          ),
           const SizedBox(height: AppSpacing.sm),
           _ProfileMenuTile(
             icon: Icons.info_outline_rounded,

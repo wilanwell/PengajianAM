@@ -1,8 +1,14 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pengajian_am_stpm_objektif/features/progress/domain/entities/user_progress.dart';
+import 'package:pengajian_am_stpm_objektif/features/progress/domain/repositories/user_progress_repository.dart';
+import 'package:pengajian_am_stpm_objektif/features/progress/presentation/controllers/user_progress_controller.dart';
+import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_attempt.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_mode.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_question.dart';
+import 'package:pengajian_am_stpm_objektif/features/quiz/domain/repositories/quiz_history_repository.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/repositories/quiz_repository.dart';
+import 'package:pengajian_am_stpm_objektif/features/quiz/presentation/controllers/quiz_history_controller.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/presentation/controllers/quiz_session_controller.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/presentation/controllers/quiz_session_state.dart';
 
@@ -35,11 +41,55 @@ class _FakeQuizRepository implements QuizRepository {
   }
 }
 
+class _FakeUserProgressRepository implements UserProgressRepository {
+  UserProgress? storedProgress;
+
+  @override
+  Future<UserProgress?> loadProgress() async {
+    return storedProgress;
+  }
+
+  @override
+  Future<void> saveProgress(UserProgress progress) async {
+    storedProgress = progress;
+  }
+
+  @override
+  Future<void> clearProgress() async {
+    storedProgress = null;
+  }
+}
+
+class _FakeQuizHistoryRepository implements QuizHistoryRepository {
+  List<QuizAttempt> attempts = [];
+
+  @override
+  Future<List<QuizAttempt>> loadAttempts() async {
+    return List<QuizAttempt>.unmodifiable(attempts);
+  }
+
+  @override
+  Future<void> saveAttempts(List<QuizAttempt> attempts) async {
+    this.attempts = List<QuizAttempt>.from(attempts);
+  }
+
+  @override
+  Future<void> clearAttempts() async {
+    attempts = [];
+  }
+}
+
 void main() {
-  test('memulakan, menjawab dan menghantar kuiz', () async {
+  test('memulakan, menjawab, menghantar dan menyimpan kuiz', () async {
+    final progressRepository = _FakeUserProgressRepository();
+
+    final historyRepository = _FakeQuizHistoryRepository();
+
     final container = ProviderContainer(
       overrides: [
         quizRepositoryProvider.overrideWithValue(const _FakeQuizRepository()),
+        userProgressRepositoryProvider.overrideWithValue(progressRepository),
+        quizHistoryRepositoryProvider.overrideWithValue(historyRepository),
       ],
     );
 
@@ -75,5 +125,11 @@ void main() {
     expect(state.result!.correctAnswers, 1);
 
     expect(state.result!.answeredQuestions, 2);
+
+    expect(progressRepository.storedProgress, isNotNull);
+
+    expect(historyRepository.attempts, hasLength(1));
+
+    expect(historyRepository.attempts.first.earnedXp, 30);
   });
 }
