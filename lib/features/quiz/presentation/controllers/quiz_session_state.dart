@@ -58,10 +58,18 @@ class QuizSessionState {
     return selectedAnswers[question.id];
   }
 
-  int get answeredQuestionCount => selectedAnswers.length;
+  int get answeredQuestionCount {
+    return selectedAnswers.length;
+  }
 
   int get unansweredQuestionCount {
-    return questions.length - answeredQuestionCount;
+    final count = questions.length - answeredQuestionCount;
+
+    return count < 0 ? 0 : count;
+  }
+
+  int get flaggedQuestionCount {
+    return flaggedQuestionIds.length;
   }
 
   double get progress {
@@ -76,7 +84,9 @@ class QuizSessionState {
     return questions.isNotEmpty && currentQuestionIndex == questions.length - 1;
   }
 
-  bool get canGoPrevious => currentQuestionIndex > 0;
+  bool get canGoPrevious {
+    return currentQuestionIndex > 0;
+  }
 
   bool get isCurrentQuestionFlagged {
     final question = currentQuestion;
@@ -86,6 +96,22 @@ class QuizSessionState {
     }
 
     return flaggedQuestionIds.contains(question.id);
+  }
+
+  bool isQuestionAnswered(int index) {
+    if (index < 0 || index >= questions.length) {
+      return false;
+    }
+
+    return selectedAnswers.containsKey(questions[index].id);
+  }
+
+  bool isQuestionFlagged(int index) {
+    if (index < 0 || index >= questions.length) {
+      return false;
+    }
+
+    return flaggedQuestionIds.contains(questions[index].id);
   }
 
   String? get formattedRemainingTime {

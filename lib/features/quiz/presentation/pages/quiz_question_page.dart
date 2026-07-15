@@ -11,6 +11,7 @@ import '../controllers/quiz_session_controller.dart';
 import '../controllers/quiz_session_state.dart';
 import '../widgets/quiz_answer_option.dart';
 import '../widgets/quiz_progress_header.dart';
+import '../widgets/quiz_question_navigator.dart';
 
 class QuizQuestionPage extends ConsumerStatefulWidget {
   const QuizQuestionPage({
@@ -46,6 +47,36 @@ class _QuizQuestionPageState extends ConsumerState<QuizQuestionPage> {
     });
   }
 
+  Future<void> _openQuestionNavigator(QuizSessionState state) async {
+    if (state.status != QuizSessionStatus.ready || state.questions.isEmpty) {
+      return;
+    }
+
+    final selectedIndex = await showModalBottomSheet<int>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        return QuizQuestionNavigator(
+          state: state,
+          onClose: () {
+            Navigator.of(sheetContext).pop();
+          },
+          onQuestionSelected: (index) {
+            Navigator.of(sheetContext).pop(index);
+          },
+        );
+      },
+    );
+
+    if (!mounted || selectedIndex == null) {
+      return;
+    }
+
+    ref
+        .read(quizSessionControllerProvider.notifier)
+        .goToQuestion(selectedIndex);
+  }
+
   Future<void> _requestSubmission(QuizSessionState state) async {
     final shouldSubmit = await showDialog<bool>(
       context: context,
@@ -55,8 +86,9 @@ class _QuizQuestionPageState extends ConsumerState<QuizQuestionPage> {
           content: Text(
             '${state.answeredQuestionCount} daripada '
             '${state.questions.length} soalan telah dijawab.\n\n'
-            '${state.unansweredQuestionCount} soalan '
-            'masih belum dijawab.',
+            '${state.unansweredQuestionCount} soalan masih '
+            'belum dijawab.\n\n'
+            '${state.flaggedQuestionCount} soalan telah ditanda.',
           ),
           actions: [
             TextButton(
@@ -113,6 +145,18 @@ class _QuizQuestionPageState extends ConsumerState<QuizQuestionPage> {
       appBar: AppBar(
         title: Text(widget.mode.label),
         actions: [
+          if (state.status == QuizSessionStatus.ready)
+            IconButton(
+              tooltip: 'Navigasi soalan',
+              onPressed: () {
+                _openQuestionNavigator(state);
+              },
+              icon: Badge(
+                isLabelVisible: state.unansweredQuestionCount > 0,
+                label: Text('${state.unansweredQuestionCount}'),
+                child: const Icon(Icons.grid_view_rounded),
+              ),
+            ),
           if (state.formattedRemainingTime != null)
             Padding(
               padding: const EdgeInsets.only(right: AppSpacing.md),
@@ -168,6 +212,9 @@ class _QuizQuestionPageState extends ConsumerState<QuizQuestionPage> {
             onPrevious: controller.previousQuestion,
             onNext: controller.nextQuestion,
             onToggleFlag: controller.toggleFlagCurrentQuestion,
+            onOpenNavigator: () {
+              _openQuestionNavigator(state);
+            },
             onSubmit: () {
               _requestSubmission(state);
             },
@@ -188,6 +235,7 @@ class _QuizQuestionContent extends StatelessWidget {
     required this.onPrevious,
     required this.onNext,
     required this.onToggleFlag,
+    required this.onOpenNavigator,
     required this.onSubmit,
   });
 
@@ -196,6 +244,7 @@ class _QuizQuestionContent extends StatelessWidget {
   final VoidCallback onPrevious;
   final VoidCallback onNext;
   final VoidCallback onToggleFlag;
+  final VoidCallback onOpenNavigator;
   final VoidCallback onSubmit;
 
   @override
@@ -219,6 +268,15 @@ class _QuizQuestionContent extends StatelessWidget {
                 answeredQuestions: state.answeredQuestionCount,
                 progress: state.progress,
               ),
+              const SizedBox(height: AppSpacing.sm),
+              OutlinedButton.icon(
+                onPressed: onOpenNavigator,
+                icon: const Icon(Icons.grid_view_rounded),
+                label: Text(
+                  'Semak Semua Soalan '
+                  '(${state.unansweredQuestionCount} belum dijawab)',
+                ),
+              ),
               const SizedBox(height: AppSpacing.lg),
               Container(
                 padding: AppSpacing.largeCardPadding,
@@ -230,11 +288,45 @@ class _QuizQuestionContent extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Soalan ${state.currentQuestionIndex + 1}',
-                      style: textTheme.labelMedium?.copyWith(
-                        color: AppColors.actionBlue,
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Soalan '
+                            '${state.currentQuestionIndex + 1}',
+                            style: textTheme.labelMedium?.copyWith(
+                              color: AppColors.actionBlue,
+                            ),
+                          ),
+                        ),
+                        if (state.isCurrentQuestionFlagged)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.sm,
+                              vertical: AppSpacing.xs,
+                            ),
+                            decoration: const BoxDecoration(
+                              color: AppColors.warningBackground,
+                              borderRadius: AppRadius.fullyRounded,
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.bookmark_rounded,
+                                  size: 16,
+                                  color: AppColors.warning,
+                                ),
+                                const SizedBox(width: AppSpacing.xxs),
+                                Text(
+                                  'Ditanda',
+                                  style: textTheme.labelSmall?.copyWith(
+                                    color: AppColors.warning,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     Text(question.questionText, style: textTheme.headlineSmall),
