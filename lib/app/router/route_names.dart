@@ -8,6 +8,7 @@ abstract final class RouteNames {
   static const String quizInstruction = 'quiz-instruction';
   static const String quizQuestion = 'quiz-question';
   static const String quizResult = 'quiz-result';
+  static const String quizReview = 'quiz-review';
   static const String leaderboard = 'leaderboard';
   static const String profile = 'profile';
 
@@ -24,6 +25,7 @@ abstract final class RoutePaths {
   static const String quizInstruction = '/quiz/instruction';
   static const String quizQuestion = '/quiz/session';
   static const String quizResult = '/quiz/result';
+  static const String quizReview = '/quiz/review';
   static const String leaderboard = '/leaderboard';
   static const String profile = '/profile';
 

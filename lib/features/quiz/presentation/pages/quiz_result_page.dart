@@ -31,14 +31,8 @@ class QuizResultPage extends ConsumerWidget {
     );
   }
 
-  void _showReviewPlaceholder(BuildContext context) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        const SnackBar(
-          content: Text('Semakan jawapan akan dibina pada langkah seterusnya.'),
-        ),
-      );
+  void _openAnswerReview(BuildContext context) {
+    context.pushNamed(RouteNames.quizReview, extra: result);
   }
 
   @override
@@ -178,7 +172,7 @@ class QuizResultPage extends ConsumerWidget {
             const SizedBox(height: AppSpacing.lg),
             FilledButton.icon(
               onPressed: () {
-                _showReviewPlaceholder(context);
+                _openAnswerReview(context);
               },
               icon: const Icon(Icons.fact_check_outlined),
               label: const Text('Semak Jawapan'),
