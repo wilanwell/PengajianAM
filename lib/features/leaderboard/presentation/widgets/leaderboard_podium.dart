@@ -29,7 +29,8 @@ class LeaderboardPodium extends StatelessWidget {
           child: _PodiumCard(
             entry: _entryAtRank(2),
             rank: 2,
-            height: 152,
+            minimumHeight: 184,
+            avatarRadius: 25,
             color: AppColors.silver,
           ),
         ),
@@ -38,7 +39,8 @@ class LeaderboardPodium extends StatelessWidget {
           child: _PodiumCard(
             entry: _entryAtRank(1),
             rank: 1,
-            height: 184,
+            minimumHeight: 216,
+            avatarRadius: 29,
             color: AppColors.gold,
           ),
         ),
@@ -47,7 +49,8 @@ class LeaderboardPodium extends StatelessWidget {
           child: _PodiumCard(
             entry: _entryAtRank(3),
             rank: 3,
-            height: 136,
+            minimumHeight: 174,
+            avatarRadius: 25,
             color: AppColors.bronze,
           ),
         ),
@@ -60,14 +63,24 @@ class _PodiumCard extends StatelessWidget {
   const _PodiumCard({
     required this.entry,
     required this.rank,
-    required this.height,
+    required this.minimumHeight,
+    required this.avatarRadius,
     required this.color,
   });
 
   final LeaderboardEntry? entry;
   final int rank;
-  final double height;
+  final double minimumHeight;
+  final double avatarRadius;
   final Color color;
+
+  Color get _avatarTextColor {
+    return rank == 1 ? AppColors.primaryText : AppColors.textOnPrimary;
+  }
+
+  Color get _rankTextColor {
+    return rank == 1 ? AppColors.primaryText : AppColors.textOnPrimary;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -75,8 +88,12 @@ class _PodiumCard extends StatelessWidget {
     final leaderboardEntry = entry;
 
     return Container(
-      height: height,
-      padding: const EdgeInsets.all(AppSpacing.sm),
+      constraints: BoxConstraints(minHeight: minimumHeight),
+      alignment: Alignment.center,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.xs,
+        vertical: AppSpacing.sm,
+      ),
       decoration: BoxDecoration(
         color: color.withAlpha(28),
         borderRadius: AppRadius.large,
@@ -85,34 +102,44 @@ class _PodiumCard extends StatelessWidget {
       child: leaderboardEntry == null
           ? const SizedBox.shrink()
           : Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 CircleAvatar(
-                  radius: rank == 1 ? 29 : 25,
+                  radius: avatarRadius,
                   backgroundColor: color,
-                  foregroundColor: AppColors.primaryText,
+                  foregroundColor: _avatarTextColor,
                   child: Text(
                     leaderboardEntry.initials,
-                    style: textTheme.labelLarge,
+                    style: textTheme.labelLarge?.copyWith(
+                      color: _avatarTextColor,
+                    ),
                   ),
                 ),
-                const SizedBox(height: AppSpacing.xs),
-                Text(
-                  leaderboardEntry.nickname,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: textTheme.labelMedium,
+                const SizedBox(height: AppSpacing.sm),
+                SizedBox(
+                  width: double.infinity,
+                  child: Text(
+                    leaderboardEntry.nickname,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: textTheme.labelMedium,
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.xxs),
-                Text(
-                  '${leaderboardEntry.xp} XP',
-                  maxLines: 1,
-                  style: textTheme.labelSmall?.copyWith(
-                    color: AppColors.primary,
+                SizedBox(
+                  width: double.infinity,
+                  child: Text(
+                    '${leaderboardEntry.xp} XP',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: textTheme.labelSmall?.copyWith(
+                      color: AppColors.primary,
+                    ),
                   ),
                 ),
-                const SizedBox(height: AppSpacing.xs),
+                const SizedBox(height: AppSpacing.sm),
                 Container(
                   width: 34,
                   height: 34,
@@ -124,9 +151,7 @@ class _PodiumCard extends StatelessWidget {
                   child: Text(
                     '$rank',
                     style: textTheme.titleMedium?.copyWith(
-                      color: rank == 1
-                          ? AppColors.primaryText
-                          : AppColors.textOnPrimary,
+                      color: _rankTextColor,
                     ),
                   ),
                 ),
