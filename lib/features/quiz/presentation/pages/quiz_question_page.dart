@@ -32,6 +32,9 @@ class QuizQuestionPage extends ConsumerStatefulWidget {
 }
 
 class _QuizQuestionPageState extends ConsumerState<QuizQuestionPage> {
+  bool _allowPop = false;
+  bool _isExitDialogOpen = false;
+
   @override
   void initState() {
     super.initState();
@@ -77,6 +80,85 @@ class _QuizQuestionPageState extends ConsumerState<QuizQuestionPage> {
         .goToQuestion(selectedIndex);
   }
 
+  Future<void> _requestExit(QuizSessionState state) async {
+    if (_isExitDialogOpen) {
+      return;
+    }
+
+    _isExitDialogOpen = true;
+
+    final shouldExit = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return AlertDialog(
+          icon: const Icon(
+            Icons.warning_amber_rounded,
+            color: AppColors.warning,
+            size: 42,
+          ),
+          title: const Text('Keluar Kuiz?'),
+          content: Text(
+            'Kemajuan kuiz semasa belum dihantar.\n\n'
+            '${state.answeredQuestionCount} daripada '
+            '${state.questions.length} soalan telah dijawab.\n'
+            '${state.unansweredQuestionCount} soalan belum dijawab.\n'
+            '${state.flaggedQuestionCount} soalan ditanda.\n\n'
+            'Semua jawapan sesi ini akan dibuang apabila '
+            'anda keluar.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop(false);
+              },
+              child: const Text('Teruskan Kuiz'),
+            ),
+            FilledButton.icon(
+              style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+              onPressed: () {
+                Navigator.of(dialogContext).pop(true);
+              },
+              icon: const Icon(Icons.exit_to_app_rounded),
+              label: const Text('Keluar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    _isExitDialogOpen = false;
+
+    if (!mounted || shouldExit != true) {
+      return;
+    }
+
+    ref.read(quizSessionControllerProvider.notifier).reset();
+
+    setState(() {
+      _allowPop = true;
+    });
+
+    // Tunggu PopScope dibina semula dengan canPop = true.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+
+      Navigator.of(context).pop();
+    });
+  }
+
+  void _showSubmittingMessage() {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(
+          content: Text('Jawapan sedang dihantar. Sila tunggu sebentar.'),
+        ),
+      );
+  }
+
   Future<void> _requestSubmission(QuizSessionState state) async {
     final shouldSubmit = await showDialog<bool>(
       context: context,
@@ -115,6 +197,27 @@ class _QuizQuestionPageState extends ConsumerState<QuizQuestionPage> {
     await ref.read(quizSessionControllerProvider.notifier).submitQuiz();
   }
 
+  void _openQuizResult(QuizSessionState state) {
+    final result = state.result;
+
+    if (result == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      _allowPop = true;
+    });
+
+    // Pastikan PopScope membenarkan route digantikan.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+
+      context.pushReplacementNamed(RouteNames.quizResult, extra: result);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(quizSessionControllerProvider);
@@ -128,101 +231,120 @@ class _QuizQuestionPageState extends ConsumerState<QuizQuestionPage> {
       if (previous?.status != QuizSessionStatus.completed &&
           next.status == QuizSessionStatus.completed &&
           next.result != null) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) {
-            return;
-          }
-
-          context.pushReplacementNamed(
-            RouteNames.quizResult,
-            extra: next.result,
-          );
-        });
+        _openQuizResult(next);
       }
     });
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.mode.label),
-        actions: [
-          if (state.status == QuizSessionStatus.ready)
-            IconButton(
-              tooltip: 'Navigasi soalan',
-              onPressed: () {
-                _openQuestionNavigator(state);
-              },
-              icon: Badge(
-                isLabelVisible: state.unansweredQuestionCount > 0,
-                label: Text('${state.unansweredQuestionCount}'),
-                child: const Icon(Icons.grid_view_rounded),
+    final shouldBlockExit =
+        state.status == QuizSessionStatus.ready ||
+        state.status == QuizSessionStatus.submitting;
+
+    return PopScope<void>(
+      canPop: _allowPop || !shouldBlockExit,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) {
+          // Bersihkan sesi yang masih pada peringkat awal.
+          if (state.status == QuizSessionStatus.initial ||
+              state.status == QuizSessionStatus.loading ||
+              state.status == QuizSessionStatus.failure) {
+            controller.reset();
+          }
+
+          return;
+        }
+
+        if (state.status == QuizSessionStatus.submitting) {
+          _showSubmittingMessage();
+          return;
+        }
+
+        if (state.status == QuizSessionStatus.ready) {
+          await _requestExit(state);
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(widget.mode.label),
+          actions: [
+            if (state.status == QuizSessionStatus.ready)
+              IconButton(
+                tooltip: 'Navigasi soalan',
+                onPressed: () {
+                  _openQuestionNavigator(state);
+                },
+                icon: Badge(
+                  isLabelVisible: state.unansweredQuestionCount > 0,
+                  label: Text('${state.unansweredQuestionCount}'),
+                  child: const Icon(Icons.grid_view_rounded),
+                ),
               ),
-            ),
-          if (state.formattedRemainingTime != null)
-            Padding(
-              padding: const EdgeInsets.only(right: AppSpacing.md),
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.sm,
-                    vertical: AppSpacing.xs,
-                  ),
-                  decoration: const BoxDecoration(
-                    color: AppColors.warningBackground,
-                    borderRadius: AppRadius.fullyRounded,
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.timer_outlined,
-                        size: 18,
-                        color: AppColors.warning,
-                      ),
-                      const SizedBox(width: AppSpacing.xs),
-                      Text(
-                        state.formattedRemainingTime!,
-                        style: Theme.of(context).textTheme.labelMedium
-                            ?.copyWith(color: AppColors.warning),
-                      ),
-                    ],
+            if (state.formattedRemainingTime != null)
+              Padding(
+                padding: const EdgeInsets.only(right: AppSpacing.md),
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.sm,
+                      vertical: AppSpacing.xs,
+                    ),
+                    decoration: const BoxDecoration(
+                      color: AppColors.warningBackground,
+                      borderRadius: AppRadius.fullyRounded,
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.timer_outlined,
+                          size: 18,
+                          color: AppColors.warning,
+                        ),
+                        const SizedBox(width: AppSpacing.xs),
+                        Text(
+                          state.formattedRemainingTime!,
+                          style: Theme.of(context).textTheme.labelMedium
+                              ?.copyWith(color: AppColors.warning),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
+          ],
+        ),
+        body: SafeArea(
+          child: switch (state.status) {
+            QuizSessionStatus.initial || QuizSessionStatus.loading =>
+              const Center(child: CircularProgressIndicator()),
+
+            QuizSessionStatus.failure => _QuizSessionErrorView(
+              message: state.errorMessage ?? 'Kuiz tidak dapat dimulakan.',
+              onRetry: () {
+                controller.startQuiz(
+                  topicId: widget.topicId,
+                  mode: widget.mode,
+                  questionCount: widget.questionCount,
+                );
+              },
             ),
-        ],
-      ),
-      body: SafeArea(
-        child: switch (state.status) {
-          QuizSessionStatus.initial || QuizSessionStatus.loading =>
-            const Center(child: CircularProgressIndicator()),
 
-          QuizSessionStatus.failure => _QuizSessionErrorView(
-            message: state.errorMessage ?? 'Kuiz tidak dapat dimulakan.',
-            onRetry: () {
-              controller.startQuiz(
-                topicId: widget.topicId,
-                mode: widget.mode,
-                questionCount: widget.questionCount,
-              );
-            },
-          ),
+            QuizSessionStatus.ready => _QuizQuestionContent(
+              state: state,
+              onAnswerSelected: controller.selectAnswer,
+              onPrevious: controller.previousQuestion,
+              onNext: controller.nextQuestion,
+              onToggleFlag: controller.toggleFlagCurrentQuestion,
+              onOpenNavigator: () {
+                _openQuestionNavigator(state);
+              },
+              onSubmit: () {
+                _requestSubmission(state);
+              },
+            ),
 
-          QuizSessionStatus.ready => _QuizQuestionContent(
-            state: state,
-            onAnswerSelected: controller.selectAnswer,
-            onPrevious: controller.previousQuestion,
-            onNext: controller.nextQuestion,
-            onToggleFlag: controller.toggleFlagCurrentQuestion,
-            onOpenNavigator: () {
-              _openQuestionNavigator(state);
-            },
-            onSubmit: () {
-              _requestSubmission(state);
-            },
-          ),
-
-          QuizSessionStatus.submitting || QuizSessionStatus.completed =>
-            const Center(child: CircularProgressIndicator()),
-        },
+            QuizSessionStatus.submitting || QuizSessionStatus.completed =>
+              const Center(child: CircularProgressIndicator()),
+          },
+        ),
       ),
     );
   }
