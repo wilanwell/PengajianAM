@@ -109,10 +109,39 @@ void main() {
 
     expect(state.questions, hasLength(2));
 
-    controller.selectAnswer(0);
+    /*
+       * Soalan dan pilihan jawapan telah dirandomkan.
+       * Oleh itu, test tidak boleh menganggap jawapan betul
+       * sentiasa berada pada index 0.
+       */
+
+    var currentQuestion = state.currentQuestion;
+
+    expect(currentQuestion, isNotNull);
+
+    // Jawab soalan pertama dengan jawapan yang betul.
+    controller.selectAnswer(currentQuestion!.correctOptionIndex);
+
+    // Tandakan soalan pertama.
     controller.toggleFlagCurrentQuestion();
+
     controller.nextQuestion();
-    controller.selectAnswer(0);
+
+    state = container.read(quizSessionControllerProvider);
+
+    currentQuestion = state.currentQuestion;
+
+    expect(currentQuestion, isNotNull);
+
+    /*
+       * Pilih jawapan yang salah untuk soalan kedua.
+       * Formula ini memilih index selepas correctOptionIndex.
+       */
+    final incorrectOptionIndex =
+        (currentQuestion!.correctOptionIndex + 1) %
+        currentQuestion.options.length;
+
+    controller.selectAnswer(incorrectOptionIndex);
 
     await controller.submitQuiz();
 
@@ -122,14 +151,34 @@ void main() {
 
     expect(state.result, isNotNull);
 
+    // Satu jawapan betul dan satu jawapan salah.
     expect(state.result!.correctAnswers, 1);
 
     expect(state.result!.answeredQuestions, 2);
 
+    expect(state.result!.totalQuestions, 2);
+
+    // Kedua-dua soalan dijawab.
+    expect(state.result!.unansweredQuestions, 0);
+
+    // Progress pengguna berjaya disimpan.
     expect(progressRepository.storedProgress, isNotNull);
 
+    /*
+       * XP:
+       * 1 jawapan betul × 10 XP = 10 XP
+       * Semua soalan dijawab = 20 XP
+       * Jumlah = 30 XP
+       */
+    expect(progressRepository.storedProgress!.totalXp, 1850);
+
+    // Sejarah kuiz berjaya disimpan.
     expect(historyRepository.attempts, hasLength(1));
 
     expect(historyRepository.attempts.first.earnedXp, 30);
+
+    expect(historyRepository.attempts.first.result.correctAnswers, 1);
+
+    expect(historyRepository.attempts.first.result.answeredQuestions, 2);
   });
 }

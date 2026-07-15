@@ -6,6 +6,7 @@ class QuizQuestion {
     required this.options,
     required this.correctOptionIndex,
     required this.explanation,
+    this.shuffleOptions = true,
   }) : assert(options.length >= 2),
        assert(correctOptionIndex >= 0),
        assert(correctOptionIndex < options.length);
@@ -17,8 +18,16 @@ class QuizQuestion {
   final int correctOptionIndex;
   final String explanation;
 
+  /// Tetapkan kepada false untuk soalan yang pilihan jawapannya
+  /// tidak sesuai diacak, contohnya jawapan berdasarkan urutan.
+  final bool shuffleOptions;
+
   bool isCorrect(int? selectedOptionIndex) {
     return selectedOptionIndex == correctOptionIndex;
+  }
+
+  String get correctAnswerText {
+    return options[correctOptionIndex];
   }
 
   Map<String, Object?> toJson() {
@@ -29,6 +38,7 @@ class QuizQuestion {
       'options': options,
       'correctOptionIndex': correctOptionIndex,
       'explanation': explanation,
+      'shuffleOptions': shuffleOptions,
     };
   }
 
@@ -49,6 +59,14 @@ class QuizQuestion {
       options.add(option);
     }
 
+    final rawShuffleOptions = json['shuffleOptions'];
+
+    final shuffleOptions = switch (rawShuffleOptions) {
+      null => true,
+      bool value => value,
+      _ => throw const FormatException('Invalid shuffleOptions value.'),
+    };
+
     return QuizQuestion(
       id: _readRequiredString(json, 'id'),
       topicId: _readRequiredString(json, 'topicId'),
@@ -56,6 +74,7 @@ class QuizQuestion {
       options: List<String>.unmodifiable(options),
       correctOptionIndex: _readRequiredInt(json, 'correctOptionIndex'),
       explanation: _readRequiredString(json, 'explanation'),
+      shuffleOptions: shuffleOptions,
     );
   }
 
@@ -66,6 +85,7 @@ class QuizQuestion {
     List<String>? options,
     int? correctOptionIndex,
     String? explanation,
+    bool? shuffleOptions,
   }) {
     return QuizQuestion(
       id: id ?? this.id,
@@ -74,6 +94,7 @@ class QuizQuestion {
       options: options ?? this.options,
       correctOptionIndex: correctOptionIndex ?? this.correctOptionIndex,
       explanation: explanation ?? this.explanation,
+      shuffleOptions: shuffleOptions ?? this.shuffleOptions,
     );
   }
 }

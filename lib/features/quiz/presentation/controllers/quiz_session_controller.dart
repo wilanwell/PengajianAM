@@ -8,12 +8,17 @@ import '../../data/repositories/mock_quiz_repository.dart';
 import '../../domain/entities/quiz_mode.dart';
 import '../../domain/entities/quiz_result.dart';
 import '../../domain/repositories/quiz_repository.dart';
+import '../../domain/services/quiz_randomizer.dart';
 import 'quiz_history_controller.dart';
 import 'quiz_session_state.dart';
 
-final quizRepositoryProvider = Provider<QuizRepository>(
-  (ref) => const MockQuizRepository(),
-);
+final quizRepositoryProvider = Provider<QuizRepository>((ref) {
+  return const MockQuizRepository();
+});
+
+final quizRandomizerProvider = Provider<QuizRandomizer>((ref) {
+  return const QuizRandomizer();
+});
 
 final quizSessionControllerProvider =
     NotifierProvider<QuizSessionController, QuizSessionState>(
@@ -26,6 +31,10 @@ class QuizSessionController extends Notifier<QuizSessionState> {
 
   QuizRepository get _repository {
     return ref.read(quizRepositoryProvider);
+  }
+
+  QuizRandomizer get _randomizer {
+    return ref.read(quizRandomizerProvider);
   }
 
   @override
@@ -50,12 +59,12 @@ class QuizSessionController extends Notifier<QuizSessionState> {
     );
 
     try {
-      final questions = await _repository.getQuestions(
+      final rawQuestions = await _repository.getQuestions(
         topicId: topicId,
         limit: questionCount,
       );
 
-      if (questions.isEmpty) {
+      if (rawQuestions.isEmpty) {
         state = QuizSessionState(
           status: QuizSessionStatus.failure,
           topicId: topicId,
@@ -67,10 +76,27 @@ class QuizSessionController extends Notifier<QuizSessionState> {
         return;
       }
 
-      _startedAt = DateTime.now();
+      final startedAt = DateTime.now();
+
+      final currentUser = ref.read(userProgressControllerProvider);
+
+      final shuffleSeed = Object.hash(
+        currentUser.userId,
+        topicId,
+        mode.name,
+        questionCount,
+        startedAt.microsecondsSinceEpoch,
+      );
+
+      final randomizedQuestions = _randomizer.randomize(
+        questions: rawQuestions,
+        seed: shuffleSeed,
+      );
+
+      _startedAt = startedAt;
 
       final remainingSeconds = mode == QuizMode.exam
-          ? (questionCount * 1.5 * 60).ceil()
+          ? (randomizedQuestions.length * 1.5 * 60).ceil()
           : null;
 
       state = QuizSessionState(
@@ -78,7 +104,7 @@ class QuizSessionController extends Notifier<QuizSessionState> {
         topicId: topicId,
         mode: mode,
         requestedQuestionCount: questionCount,
-        questions: questions,
+        questions: randomizedQuestions,
         remainingSeconds: remainingSeconds,
       );
 
