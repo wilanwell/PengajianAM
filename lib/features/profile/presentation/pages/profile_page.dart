@@ -275,6 +275,15 @@ class _ProfileContent extends StatelessWidget {
           Text('Akaun dan Aplikasi', style: textTheme.titleLarge),
           const SizedBox(height: AppSpacing.sm),
           _ProfileMenuTile(
+            icon: Icons.insights_rounded,
+            title: 'Analitik Prestasi',
+            subtitle: 'Lihat prestasi dan penguasaan setiap topik',
+            onTap: () {
+              context.pushNamed(RouteNames.topicAnalytics);
+            },
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _ProfileMenuTile(
             icon: Icons.history_rounded,
             title: 'Sejarah Kuiz',
             subtitle: 'Lihat keputusan dan percubaan terdahulu',

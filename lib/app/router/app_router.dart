@@ -18,6 +18,7 @@ import '../../features/quiz/presentation/pages/quiz_result_page.dart';
 import '../../features/quiz/presentation/pages/quiz_review_page.dart';
 import '../../features/quiz/presentation/pages/quiz_history_page.dart';
 import '../../features/topics/presentation/pages/topics_page.dart';
+import '../../features/analytics/presentation/pages/topic_analytics_page.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import 'route_names.dart';
@@ -116,6 +117,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: RouteNames.quizHistory,
         builder: (context, state) {
           return const QuizHistoryPage();
+        },
+      ),
+      GoRoute(
+        path: RoutePaths.topicAnalytics,
+        name: RouteNames.topicAnalytics,
+        builder: (context, state) {
+          return const TopicAnalyticsPage();
         },
       ),
       StatefulShellRoute.indexedStack(
