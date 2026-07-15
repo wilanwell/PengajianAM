@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +10,7 @@ import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../core/widgets/app_text_field.dart';
 import '../../domain/validators/auth_validators.dart';
+import '../controllers/auth_session_controller.dart';
 import '../controllers/register_controller.dart';
 import '../controllers/register_state.dart';
 
@@ -15,20 +18,46 @@ class RegisterPage extends ConsumerStatefulWidget {
   const RegisterPage({super.key});
 
   @override
-  ConsumerState<RegisterPage> createState() => _RegisterPageState();
+  ConsumerState<RegisterPage> createState() {
+    return _RegisterPageState();
+  }
 }
 
 class _RegisterPageState extends ConsumerState<RegisterPage> {
   final _formKey = GlobalKey<FormState>();
 
+  bool _isCompletingRegistration = false;
+
   void _submit() {
     FocusScope.of(context).unfocus();
 
-    if (!_formKey.currentState!.validate()) {
+    final formState = _formKey.currentState;
+
+    if (formState == null || !formState.validate()) {
       return;
     }
 
     ref.read(registerControllerProvider.notifier).register();
+  }
+
+  Future<void> _completeRegistration() async {
+    if (_isCompletingRegistration) {
+      return;
+    }
+
+    _isCompletingRegistration = true;
+
+    try {
+      await ref.read(authSessionControllerProvider.notifier).signIn();
+
+      if (!mounted) {
+        return;
+      }
+
+      context.goNamed(RouteNames.home);
+    } finally {
+      _isCompletingRegistration = false;
+    }
   }
 
   @override
@@ -40,9 +69,12 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     final textTheme = Theme.of(context).textTheme;
 
     ref.listen<RegisterState>(registerControllerProvider, (previous, next) {
-      if (previous?.status != RegisterStatus.success &&
-          next.status == RegisterStatus.success) {
-        context.goNamed(RouteNames.home);
+      final becameSuccessful =
+          previous?.status != RegisterStatus.success &&
+          next.status == RegisterStatus.success;
+
+      if (becameSuccessful) {
+        unawaited(_completeRegistration());
       }
     });
 
@@ -83,8 +115,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                       ),
                       const SizedBox(height: AppSpacing.xs),
                       Text(
-                        'Daftar untuk menyimpan kemajuan, markah '
-                        'dan kedudukan anda.',
+                        'Daftar untuk menyimpan kemajuan, '
+                        'markah dan kedudukan anda.',
                         textAlign: TextAlign.center,
                         style: textTheme.bodyMedium?.copyWith(
                           color: AppColors.secondaryText,
@@ -106,7 +138,9 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                               hint: 'Masukkan nama anda',
                               textInputAction: TextInputAction.next,
                               autofillHints: const [AutofillHints.name],
-                              enabled: !registerState.isLoading,
+                              enabled:
+                                  !registerState.isLoading &&
+                                  !_isCompletingRegistration,
                               prefixIcon: const Icon(
                                 Icons.person_outline_rounded,
                               ),
@@ -120,7 +154,9 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                               keyboardType: TextInputType.emailAddress,
                               textInputAction: TextInputAction.next,
                               autofillHints: const [AutofillHints.email],
-                              enabled: !registerState.isLoading,
+                              enabled:
+                                  !registerState.isLoading &&
+                                  !_isCompletingRegistration,
                               prefixIcon: const Icon(Icons.email_outlined),
                               validator: AuthValidators.email,
                               onChanged: registerController.emailChanged,
@@ -131,7 +167,9 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                               hint: 'Minimum 6 aksara',
                               textInputAction: TextInputAction.next,
                               autofillHints: const [AutofillHints.newPassword],
-                              enabled: !registerState.isLoading,
+                              enabled:
+                                  !registerState.isLoading &&
+                                  !_isCompletingRegistration,
                               obscureText: !registerState.isPasswordVisible,
                               prefixIcon: const Icon(
                                 Icons.lock_outline_rounded,
@@ -140,7 +178,9 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                                 tooltip: registerState.isPasswordVisible
                                     ? 'Sembunyikan kata laluan'
                                     : 'Paparkan kata laluan',
-                                onPressed: registerState.isLoading
+                                onPressed:
+                                    registerState.isLoading ||
+                                        _isCompletingRegistration
                                     ? null
                                     : registerController
                                           .togglePasswordVisibility,
@@ -158,7 +198,9 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                               label: 'Sahkan kata laluan',
                               hint: 'Masukkan semula kata laluan',
                               textInputAction: TextInputAction.done,
-                              enabled: !registerState.isLoading,
+                              enabled:
+                                  !registerState.isLoading &&
+                                  !_isCompletingRegistration,
                               obscureText:
                                   !registerState.isConfirmPasswordVisible,
                               prefixIcon: const Icon(Icons.lock_reset_rounded),
@@ -166,7 +208,9 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                                 tooltip: registerState.isConfirmPasswordVisible
                                     ? 'Sembunyikan kata laluan'
                                     : 'Paparkan kata laluan',
-                                onPressed: registerState.isLoading
+                                onPressed:
+                                    registerState.isLoading ||
+                                        _isCompletingRegistration
                                     ? null
                                     : registerController
                                           .toggleConfirmPasswordVisibility,
@@ -185,7 +229,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                               onChanged:
                                   registerController.confirmPasswordChanged,
                               onFieldSubmitted: (_) {
-                                if (!registerState.isLoading) {
+                                if (!registerState.isLoading &&
+                                    !_isCompletingRegistration) {
                                   _submit();
                                 }
                               },
@@ -222,10 +267,14 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                             ],
                             const SizedBox(height: AppSpacing.lg),
                             FilledButton(
-                              onPressed: registerState.isLoading
+                              onPressed:
+                                  registerState.isLoading ||
+                                      _isCompletingRegistration
                                   ? null
                                   : _submit,
-                              child: registerState.isLoading
+                              child:
+                                  registerState.isLoading ||
+                                      _isCompletingRegistration
                                   ? const SizedBox(
                                       width: 22,
                                       height: 22,
@@ -248,9 +297,6 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                         ),
                       ),
                       const SizedBox(height: AppSpacing.lg),
-
-                      // Wrap digunakan supaya kandungan tidak overflow
-                      // pada skrin sempit atau apabila saiz teks dibesarkan.
                       Wrap(
                         alignment: WrapAlignment.center,
                         crossAxisAlignment: WrapCrossAlignment.center,
@@ -265,7 +311,9 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                             ),
                           ),
                           TextButton(
-                            onPressed: registerState.isLoading
+                            onPressed:
+                                registerState.isLoading ||
+                                    _isCompletingRegistration
                                 ? null
                                 : () {
                                     registerController.reset();

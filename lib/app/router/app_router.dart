@@ -20,15 +20,23 @@ import '../../features/quiz/presentation/pages/quiz_history_page.dart';
 import '../../features/topics/presentation/pages/topics_page.dart';
 import '../../features/analytics/presentation/pages/topic_analytics_page.dart';
 import '../../features/settings/presentation/pages/settings_page.dart';
+import '../../features/authentication/presentation/pages/splash_page.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import 'route_names.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final router = GoRouter(
-    initialLocation: RoutePaths.login,
+    initialLocation: RoutePaths.splash,
     debugLogDiagnostics: kDebugMode,
     routes: [
+      GoRoute(
+        path: RoutePaths.splash,
+        name: RouteNames.splash,
+        builder: (context, state) {
+          return const SplashPage();
+        },
+      ),
       GoRoute(
         path: RoutePaths.login,
         name: RouteNames.login,

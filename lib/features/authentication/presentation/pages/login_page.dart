@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +10,7 @@ import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../core/widgets/app_text_field.dart';
 import '../../domain/validators/auth_validators.dart';
+import '../controllers/auth_session_controller.dart';
 import '../controllers/login_controller.dart';
 import '../controllers/login_state.dart';
 
@@ -15,20 +18,46 @@ class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
 
   @override
-  ConsumerState<LoginPage> createState() => _LoginPageState();
+  ConsumerState<LoginPage> createState() {
+    return _LoginPageState();
+  }
 }
 
 class _LoginPageState extends ConsumerState<LoginPage> {
   final _formKey = GlobalKey<FormState>();
 
+  bool _isCompletingLogin = false;
+
   void _submit() {
     FocusScope.of(context).unfocus();
 
-    if (!_formKey.currentState!.validate()) {
+    final formState = _formKey.currentState;
+
+    if (formState == null || !formState.validate()) {
       return;
     }
 
     ref.read(loginControllerProvider.notifier).login();
+  }
+
+  Future<void> _completeLogin() async {
+    if (_isCompletingLogin) {
+      return;
+    }
+
+    _isCompletingLogin = true;
+
+    try {
+      await ref.read(authSessionControllerProvider.notifier).signIn();
+
+      if (!mounted) {
+        return;
+      }
+
+      context.goNamed(RouteNames.home);
+    } finally {
+      _isCompletingLogin = false;
+    }
   }
 
   void _showTemporaryMessage(String message) {
@@ -40,12 +69,18 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   @override
   Widget build(BuildContext context) {
     final loginState = ref.watch(loginControllerProvider);
+
+    final loginController = ref.read(loginControllerProvider.notifier);
+
     final textTheme = Theme.of(context).textTheme;
 
     ref.listen<LoginState>(loginControllerProvider, (previous, next) {
-      if (previous?.status != LoginStatus.success &&
-          next.status == LoginStatus.success) {
-        context.goNamed(RouteNames.home);
+      final becameSuccessful =
+          previous?.status != LoginStatus.success &&
+          next.status == LoginStatus.success;
+
+      if (becameSuccessful) {
+        unawaited(_completeLogin());
       }
     });
 
@@ -108,7 +143,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                             ),
                             const SizedBox(height: AppSpacing.xs),
                             Text(
-                              'Log masuk untuk meneruskan pembelajaran anda.',
+                              'Log masuk untuk meneruskan '
+                              'pembelajaran anda.',
                               style: textTheme.bodyMedium?.copyWith(
                                 color: AppColors.secondaryText,
                               ),
@@ -120,12 +156,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                               keyboardType: TextInputType.emailAddress,
                               textInputAction: TextInputAction.next,
                               autofillHints: const [AutofillHints.email],
-                              enabled: !loginState.isLoading,
+                              enabled:
+                                  !loginState.isLoading && !_isCompletingLogin,
                               prefixIcon: const Icon(Icons.email_outlined),
                               validator: AuthValidators.email,
-                              onChanged: ref
-                                  .read(loginControllerProvider.notifier)
-                                  .emailChanged,
+                              onChanged: loginController.emailChanged,
                             ),
                             const SizedBox(height: AppSpacing.md),
                             AppTextField(
@@ -133,7 +168,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                               hint: 'Masukkan kata laluan anda',
                               textInputAction: TextInputAction.done,
                               autofillHints: const [AutofillHints.password],
-                              enabled: !loginState.isLoading,
+                              enabled:
+                                  !loginState.isLoading && !_isCompletingLogin,
                               obscureText: !loginState.isPasswordVisible,
                               prefixIcon: const Icon(
                                 Icons.lock_outline_rounded,
@@ -142,13 +178,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                 tooltip: loginState.isPasswordVisible
                                     ? 'Sembunyikan kata laluan'
                                     : 'Paparkan kata laluan',
-                                onPressed: loginState.isLoading
+                                onPressed:
+                                    loginState.isLoading || _isCompletingLogin
                                     ? null
-                                    : ref
-                                          .read(
-                                            loginControllerProvider.notifier,
-                                          )
-                                          .togglePasswordVisibility,
+                                    : loginController.togglePasswordVisibility,
                                 icon: Icon(
                                   loginState.isPasswordVisible
                                       ? Icons.visibility_off_outlined
@@ -156,11 +189,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                 ),
                               ),
                               validator: AuthValidators.password,
-                              onChanged: ref
-                                  .read(loginControllerProvider.notifier)
-                                  .passwordChanged,
+                              onChanged: loginController.passwordChanged,
                               onFieldSubmitted: (_) {
-                                if (!loginState.isLoading) {
+                                if (!loginState.isLoading &&
+                                    !_isCompletingLogin) {
                                   _submit();
                                 }
                               },
@@ -168,12 +200,13 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                             Align(
                               alignment: Alignment.centerRight,
                               child: TextButton(
-                                onPressed: loginState.isLoading
+                                onPressed:
+                                    loginState.isLoading || _isCompletingLogin
                                     ? null
                                     : () {
                                         _showTemporaryMessage(
-                                          'Fungsi lupa kata laluan akan '
-                                          'dibina kemudian.',
+                                          'Fungsi lupa kata laluan '
+                                          'akan dibina kemudian.',
                                         );
                                       },
                                 child: const Text('Lupa kata laluan?'),
@@ -209,8 +242,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                               const SizedBox(height: AppSpacing.md),
                             ],
                             FilledButton(
-                              onPressed: loginState.isLoading ? null : _submit,
-                              child: loginState.isLoading
+                              onPressed:
+                                  loginState.isLoading || _isCompletingLogin
+                                  ? null
+                                  : _submit,
+                              child: loginState.isLoading || _isCompletingLogin
                                   ? const SizedBox(
                                       width: 22,
                                       height: 22,
@@ -231,9 +267,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                             ),
                             const SizedBox(height: AppSpacing.sm),
                             OutlinedButton.icon(
-                              onPressed: loginState.isLoading
+                              onPressed:
+                                  loginState.isLoading || _isCompletingLogin
                                   ? null
                                   : () {
+                                      loginController.reset();
+
                                       context.pushNamed(RouteNames.register);
                                     },
                               icon: const Icon(Icons.person_add_alt_1_outlined),
@@ -244,8 +283,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       ),
                       const SizedBox(height: AppSpacing.lg),
                       Text(
-                        'Dengan meneruskan, anda bersetuju dengan '
-                        'Terma Penggunaan dan Dasar Privasi.',
+                        'Dengan meneruskan, anda bersetuju '
+                        'dengan Terma Penggunaan dan '
+                        'Dasar Privasi.',
                         textAlign: TextAlign.center,
                         style: textTheme.bodySmall?.copyWith(
                           color: AppColors.secondaryText,

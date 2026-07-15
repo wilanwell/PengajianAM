@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../app/router/route_names.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_spacing.dart';
+import '../../../authentication/presentation/controllers/auth_session_controller.dart';
 import '../../../authentication/presentation/controllers/login_controller.dart';
 import '../../../progress/presentation/controllers/user_progress_controller.dart';
 import '../../../quiz/presentation/controllers/quiz_history_controller.dart';
@@ -26,6 +27,8 @@ class HomePage extends ConsumerStatefulWidget {
 }
 
 class _HomePageState extends ConsumerState<HomePage> {
+  bool _isLoggingOut = false;
+
   @override
   void initState() {
     super.initState();
@@ -35,12 +38,24 @@ class _HomePageState extends ConsumerState<HomePage> {
     });
   }
 
-  void _logout() {
+  Future<void> _logout() async {
+    if (_isLoggingOut) {
+      return;
+    }
+
+    _isLoggingOut = true;
+
+    await ref.read(authSessionControllerProvider.notifier).signOut();
+
+    if (!mounted) {
+      return;
+    }
+
     ref.read(loginControllerProvider.notifier).reset();
     ref.read(homeControllerProvider.notifier).reset();
+
     ref.read(quizHistoryControllerProvider.notifier).reset();
 
-    // UserProgress dan sejarah tersimpan tidak dipadamkan.
     context.goNamed(RouteNames.login);
   }
 
@@ -64,8 +79,17 @@ class _HomePageState extends ConsumerState<HomePage> {
         actions: [
           IconButton(
             tooltip: 'Log keluar',
-            onPressed: _logout,
-            icon: const Icon(Icons.logout_rounded),
+            onPressed: _isLoggingOut ? null : _logout,
+            icon: _isLoggingOut
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.textOnPrimary,
+                    ),
+                  )
+                : const Icon(Icons.logout_rounded),
           ),
           const SizedBox(width: AppSpacing.xs),
         ],

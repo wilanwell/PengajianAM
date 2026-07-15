@@ -1,4 +1,5 @@
 abstract final class RouteNames {
+  static const String splash = 'splash';
   static const String login = 'login';
   static const String register = 'register';
 
@@ -19,6 +20,7 @@ abstract final class RouteNames {
 }
 
 abstract final class RoutePaths {
+  static const String splash = '/';
   static const String login = '/login';
   static const String register = '/register';
 

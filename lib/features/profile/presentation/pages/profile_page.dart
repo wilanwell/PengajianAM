@@ -6,6 +6,7 @@ import '../../../../app/router/route_names.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_spacing.dart';
+import '../../../authentication/presentation/controllers/auth_session_controller.dart';
 import '../../../authentication/presentation/controllers/login_controller.dart';
 import '../../../home/presentation/controllers/home_controller.dart';
 import '../../../leaderboard/presentation/controllers/leaderboard_controller.dart';
@@ -32,6 +33,8 @@ class ProfilePage extends ConsumerStatefulWidget {
 }
 
 class _ProfilePageState extends ConsumerState<ProfilePage> {
+  bool _isLoggingOut = false;
+
   @override
   void initState() {
     super.initState();
@@ -105,10 +108,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       );
   }
 
-  void _openQuizHistory() {
-    context.pushNamed(RouteNames.quizHistory);
-  }
-
   void _showAboutApplication() {
     showAboutDialog(
       context: context,
@@ -129,6 +128,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   }
 
   Future<void> _logout() async {
+    if (_isLoggingOut) {
+      return;
+    }
+
     final shouldLogout = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
@@ -160,17 +163,30 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       return;
     }
 
+    setState(() {
+      _isLoggingOut = true;
+    });
+
+    await ref.read(authSessionControllerProvider.notifier).signOut();
+
+    if (!mounted) {
+      return;
+    }
+
     ref.read(loginControllerProvider.notifier).reset();
     ref.read(homeControllerProvider.notifier).reset();
     ref.read(topicsControllerProvider.notifier).reset();
+
     ref.read(quizSetupControllerProvider.notifier).reset();
+
     ref.read(quizSessionControllerProvider.notifier).reset();
+
     ref.read(quizHistoryControllerProvider.notifier).reset();
+
     ref.read(leaderboardControllerProvider.notifier).reset();
+
     ref.read(profileControllerProvider.notifier).reset();
 
-    // UserProgress tidak dipadamkan supaya data local
-    // kekal selepas pengguna log keluar.
     context.goNamed(RouteNames.login);
   }
 
@@ -210,11 +226,11 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   )
                 : _ProfileContent(
                     profile: state.profile!,
+                    isLoggingOut: _isLoggingOut,
                     onRefresh: controller.refreshProfile,
                     onEditName: () {
                       _editDisplayName(state.profile!);
                     },
-                    onOpenQuizHistory: _openQuizHistory,
                     onShowAbout: _showAboutApplication,
                     onLogout: _logout,
                   ),
@@ -227,17 +243,17 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 class _ProfileContent extends StatelessWidget {
   const _ProfileContent({
     required this.profile,
+    required this.isLoggingOut,
     required this.onRefresh,
     required this.onEditName,
-    required this.onOpenQuizHistory,
     required this.onShowAbout,
     required this.onLogout,
   });
 
   final StudentProfile profile;
+  final bool isLoggingOut;
   final Future<void> Function() onRefresh;
   final VoidCallback onEditName;
-  final VoidCallback onOpenQuizHistory;
   final VoidCallback onShowAbout;
   final VoidCallback onLogout;
 
@@ -287,7 +303,9 @@ class _ProfileContent extends StatelessWidget {
             icon: Icons.history_rounded,
             title: 'Sejarah Kuiz',
             subtitle: 'Lihat keputusan dan percubaan terdahulu',
-            onTap: onOpenQuizHistory,
+            onTap: () {
+              context.pushNamed(RouteNames.quizHistory);
+            },
           ),
           const SizedBox(height: AppSpacing.sm),
           _ProfileMenuTile(
@@ -307,11 +325,15 @@ class _ProfileContent extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.sm),
           _ProfileMenuTile(
-            icon: Icons.logout_rounded,
-            title: 'Log Keluar',
-            subtitle: 'Keluar daripada akaun semasa',
+            icon: isLoggingOut
+                ? Icons.hourglass_top_rounded
+                : Icons.logout_rounded,
+            title: isLoggingOut ? 'Sedang Log Keluar...' : 'Log Keluar',
+            subtitle: isLoggingOut
+                ? 'Sila tunggu sebentar'
+                : 'Keluar daripada akaun semasa',
             foregroundColor: AppColors.error,
-            onTap: onLogout,
+            onTap: isLoggingOut ? () {} : onLogout,
           ),
           const SizedBox(height: AppSpacing.lg),
         ],
