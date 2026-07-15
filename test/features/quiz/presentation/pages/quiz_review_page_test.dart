@@ -42,9 +42,11 @@ void main() {
 
     expect(find.text('Semakan Jawapan'), findsOneWidget);
 
-    expect(find.text('Soalan pertama'), findsOneWidget);
+    // skipOffstage: false memastikan item yang berada di bawah
+    // kawasan skrin test masih boleh dikesan.
+    expect(find.text('Soalan pertama', skipOffstage: false), findsOneWidget);
 
-    expect(find.text('Soalan kedua'), findsOneWidget);
+    expect(find.text('Soalan kedua', skipOffstage: false), findsOneWidget);
 
     final incorrectFilter = find.widgetWithText(FilterChip, 'Salah');
 
@@ -56,8 +58,11 @@ void main() {
     await tester.tap(incorrectFilter);
     await tester.pumpAndSettle();
 
-    expect(find.text('Soalan pertama'), findsNothing);
+    // Soalan pertama dijawab betul, jadi ia tidak patut berada
+    // dalam senarai selepas penapis Salah dipilih.
+    expect(find.text('Soalan pertama', skipOffstage: false), findsNothing);
 
-    expect(find.text('Soalan kedua'), findsOneWidget);
+    // Soalan kedua dijawab salah dan mesti kekal dalam senarai.
+    expect(find.text('Soalan kedua', skipOffstage: false), findsOneWidget);
   });
 }
