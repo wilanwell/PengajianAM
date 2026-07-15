@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../../app/router/route_names.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_spacing.dart';
@@ -80,15 +82,14 @@ class _QuizInstructionContent extends StatelessWidget {
   }
 
   void _startQuiz(BuildContext context) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Quiz Question Screen akan dibina pada langkah seterusnya.',
-          ),
-        ),
-      );
+    context.pushNamed(
+      RouteNames.quizQuestion,
+      queryParameters: {
+        'topicId': topic.id,
+        'mode': mode.routeValue,
+        'questionCount': questionCount.toString(),
+      },
+    );
   }
 
   @override

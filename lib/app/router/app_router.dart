@@ -9,9 +9,12 @@ import '../../features/home/presentation/pages/home_page.dart';
 import '../../features/leaderboard/presentation/pages/leaderboard_page.dart';
 import '../../features/navigation/presentation/pages/main_navigation_page.dart';
 import '../../features/profile/presentation/pages/profile_page.dart';
-import '../../features/quiz/presentation/pages/quiz_hub_page.dart';
 import '../../features/quiz/domain/entities/quiz_mode.dart';
+import '../../features/quiz/domain/entities/quiz_result.dart';
+import '../../features/quiz/presentation/pages/quiz_hub_page.dart';
 import '../../features/quiz/presentation/pages/quiz_instruction_page.dart';
+import '../../features/quiz/presentation/pages/quiz_question_page.dart';
+import '../../features/quiz/presentation/pages/quiz_result_page.dart';
 import '../../features/topics/presentation/pages/topics_page.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
@@ -22,7 +25,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     initialLocation: RoutePaths.login,
     debugLogDiagnostics: kDebugMode,
     routes: [
-      // Routes outside the main bottom-navigation shell.
       GoRoute(
         path: RoutePaths.login,
         name: RouteNames.login,
@@ -41,14 +43,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: RoutePaths.quizInstruction,
         name: RouteNames.quizInstruction,
         builder: (context, state) {
-          final queryParameters = state.uri.queryParameters;
+          final parameters = state.uri.queryParameters;
 
-          final topicId = queryParameters['topicId'] ?? '';
+          final topicId = parameters['topicId'] ?? '';
 
-          final mode = quizModeFromRouteValue(queryParameters['mode']);
+          final mode = quizModeFromRouteValue(parameters['mode']);
 
           final questionCount =
-              int.tryParse(queryParameters['questionCount'] ?? '') ?? 10;
+              int.tryParse(parameters['questionCount'] ?? '') ?? 10;
 
           return QuizInstructionPage(
             topicId: topicId,
@@ -57,8 +59,41 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           );
         },
       ),
+      GoRoute(
+        path: RoutePaths.quizQuestion,
+        name: RouteNames.quizQuestion,
+        builder: (context, state) {
+          final parameters = state.uri.queryParameters;
 
-      // Main application navigation.
+          final topicId = parameters['topicId'] ?? '';
+
+          final mode = quizModeFromRouteValue(parameters['mode']);
+
+          final questionCount =
+              int.tryParse(parameters['questionCount'] ?? '') ?? 10;
+
+          return QuizQuestionPage(
+            topicId: topicId,
+            mode: mode,
+            questionCount: questionCount,
+          );
+        },
+      ),
+      GoRoute(
+        path: RoutePaths.quizResult,
+        name: RouteNames.quizResult,
+        builder: (context, state) {
+          final result = state.extra;
+
+          if (result is! QuizResult) {
+            return const _RouteErrorPage(
+              message: 'Keputusan kuiz tidak tersedia.',
+            );
+          }
+
+          return QuizResultPage(result: result);
+        },
+      ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
           return MainNavigationPage(navigationShell: navigationShell);
