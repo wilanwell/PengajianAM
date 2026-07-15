@@ -8,10 +8,7 @@ import '../../../../app/theme/app_colors.dart';
 /// Every destination is managed by a separate StatefulShellBranch
 /// inside app_router.dart.
 class MainNavigationPage extends StatelessWidget {
-  const MainNavigationPage({
-    required this.navigationShell,
-    super.key,
-  });
+  const MainNavigationPage({required this.navigationShell, super.key});
 
   final StatefulNavigationShell navigationShell;
 
@@ -36,52 +33,31 @@ class MainNavigationPage extends StatelessWidget {
             backgroundColor: AppColors.surface,
             selectedIndex: navigationShell.currentIndex,
             onDestinationSelected: _selectDestination,
-            labelBehavior:
-                NavigationDestinationLabelBehavior.alwaysShow,
+            labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
             destinations: const [
               NavigationDestination(
-                icon: Icon(
-                  Icons.home_outlined,
-                ),
-                selectedIcon: Icon(
-                  Icons.home_rounded,
-                ),
+                icon: Icon(Icons.home_outlined),
+                selectedIcon: Icon(Icons.home_rounded),
                 label: 'Utama',
               ),
               NavigationDestination(
-                icon: Icon(
-                  Icons.menu_book_outlined,
-                ),
-                selectedIcon: Icon(
-                  Icons.menu_book_rounded,
-                ),
+                icon: Icon(Icons.menu_book_outlined),
+                selectedIcon: Icon(Icons.menu_book_rounded),
                 label: 'Topik',
               ),
               NavigationDestination(
-                icon: Icon(
-                  Icons.quiz_outlined,
-                ),
-                selectedIcon: Icon(
-                  Icons.quiz_rounded,
-                ),
+                icon: Icon(Icons.quiz_outlined),
+                selectedIcon: Icon(Icons.quiz_rounded),
                 label: 'Kuiz',
               ),
               NavigationDestination(
-                icon: Icon(
-                  Icons.emoji_events_outlined,
-                ),
-                selectedIcon: Icon(
-                  Icons.emoji_events_rounded,
-                ),
+                icon: Icon(Icons.emoji_events_outlined),
+                selectedIcon: Icon(Icons.emoji_events_rounded),
                 label: 'Ranking',
               ),
               NavigationDestination(
-                icon: Icon(
-                  Icons.person_outline_rounded,
-                ),
-                selectedIcon: Icon(
-                  Icons.person_rounded,
-                ),
+                icon: Icon(Icons.person_outline_rounded),
+                selectedIcon: Icon(Icons.person_rounded),
                 label: 'Profil',
               ),
             ],
