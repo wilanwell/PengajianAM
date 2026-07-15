@@ -10,6 +10,8 @@ import '../../features/leaderboard/presentation/pages/leaderboard_page.dart';
 import '../../features/navigation/presentation/pages/main_navigation_page.dart';
 import '../../features/profile/presentation/pages/profile_page.dart';
 import '../../features/quiz/presentation/pages/quiz_hub_page.dart';
+import '../../features/quiz/domain/entities/quiz_mode.dart';
+import '../../features/quiz/presentation/pages/quiz_instruction_page.dart';
 import '../../features/topics/presentation/pages/topics_page.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
@@ -33,6 +35,26 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: RouteNames.register,
         builder: (context, state) {
           return const RegisterPage();
+        },
+      ),
+      GoRoute(
+        path: RoutePaths.quizInstruction,
+        name: RouteNames.quizInstruction,
+        builder: (context, state) {
+          final queryParameters = state.uri.queryParameters;
+
+          final topicId = queryParameters['topicId'] ?? '';
+
+          final mode = quizModeFromRouteValue(queryParameters['mode']);
+
+          final questionCount =
+              int.tryParse(queryParameters['questionCount'] ?? '') ?? 10;
+
+          return QuizInstructionPage(
+            topicId: topicId,
+            mode: mode,
+            questionCount: questionCount,
+          );
         },
       ),
 
@@ -70,7 +92,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 path: RoutePaths.quiz,
                 name: RouteNames.quiz,
                 builder: (context, state) {
-                  return const QuizHubPage();
+                  return QuizHubPage(
+                    selectedTopicId: state.uri.queryParameters['topicId'],
+                  );
                 },
               ),
             ],
