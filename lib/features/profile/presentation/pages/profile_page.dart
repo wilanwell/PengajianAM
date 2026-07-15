@@ -40,15 +40,15 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   }
 
   Future<void> _editDisplayName(StudentProfile profile) async {
-    final textController = TextEditingController(text: profile.displayName);
+    var editedName = profile.displayName;
 
     final value = await showDialog<String>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
           title: const Text('Edit Nama Paparan'),
-          content: TextField(
-            controller: textController,
+          content: TextFormField(
+            initialValue: profile.displayName,
             autofocus: true,
             maxLength: 30,
             textCapitalization: TextCapitalization.words,
@@ -57,7 +57,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               labelText: 'Nama paparan',
               prefixIcon: Icon(Icons.person_outline_rounded),
             ),
-            onSubmitted: (submittedValue) {
+            onChanged: (newValue) {
+              editedName = newValue;
+            },
+            onFieldSubmitted: (submittedValue) {
               Navigator.of(dialogContext).pop(submittedValue);
             },
           ),
@@ -70,7 +73,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             ),
             FilledButton(
               onPressed: () {
-                Navigator.of(dialogContext).pop(textController.text);
+                Navigator.of(dialogContext).pop(editedName);
               },
               child: const Text('Simpan'),
             ),
@@ -79,8 +82,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       },
     );
 
-    textController.dispose();
-
     if (!mounted || value == null) {
       return;
     }
@@ -88,6 +89,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     final errorMessage = ref
         .read(profileControllerProvider.notifier)
         .updateDisplayName(value);
+
+    if (!mounted) {
+      return;
+    }
 
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
