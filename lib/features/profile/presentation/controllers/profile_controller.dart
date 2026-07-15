@@ -32,6 +32,8 @@ class ProfileController extends Notifier<ProfileState> {
     try {
       await Future<void>.delayed(const Duration(milliseconds: 350));
 
+      await ref.read(userProgressControllerProvider.notifier).initialize();
+
       final progress = ref.read(userProgressControllerProvider);
 
       state = ProfileState(
@@ -46,8 +48,8 @@ class ProfileController extends Notifier<ProfileState> {
     }
   }
 
-  String? updateDisplayName(String value) {
-    final errorMessage = ref
+  Future<String?> updateDisplayName(String value) async {
+    final errorMessage = await ref
         .read(userProgressControllerProvider.notifier)
         .updateDisplayName(value);
 

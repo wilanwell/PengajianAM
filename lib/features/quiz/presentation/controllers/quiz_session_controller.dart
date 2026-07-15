@@ -193,7 +193,9 @@ class QuizSessionController extends Notifier<QuizSessionState> {
       autoSubmitted: autoSubmitted,
     );
 
-    ref.read(userProgressControllerProvider.notifier).recordQuizResult(result);
+    await ref
+        .read(userProgressControllerProvider.notifier)
+        .recordQuizResult(result);
 
     state = state.copyWith(status: QuizSessionStatus.completed, result: result);
   }

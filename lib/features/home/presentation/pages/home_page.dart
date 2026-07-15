@@ -35,7 +35,6 @@ class _HomePageState extends ConsumerState<HomePage> {
   void _logout() {
     ref.read(loginControllerProvider.notifier).reset();
     ref.read(homeControllerProvider.notifier).reset();
-    ref.read(userProgressControllerProvider.notifier).reset();
 
     context.goNamed(RouteNames.login);
   }

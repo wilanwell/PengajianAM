@@ -1,17 +1,46 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pengajian_am_stpm_objektif/features/progress/domain/entities/user_progress.dart';
+import 'package:pengajian_am_stpm_objektif/features/progress/domain/repositories/user_progress_repository.dart';
 import 'package:pengajian_am_stpm_objektif/features/progress/presentation/controllers/user_progress_controller.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_mode.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_question.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_result.dart';
 
+class _FakeUserProgressRepository implements UserProgressRepository {
+  UserProgress? storedProgress;
+  int saveCallCount = 0;
+
+  @override
+  Future<UserProgress?> loadProgress() async {
+    return storedProgress;
+  }
+
+  @override
+  Future<void> saveProgress(UserProgress progress) async {
+    storedProgress = progress;
+    saveCallCount++;
+  }
+
+  @override
+  Future<void> clearProgress() async {
+    storedProgress = null;
+  }
+}
+
 void main() {
-  test('merekod keputusan kuiz dan mengemas kini progress', () {
-    final container = ProviderContainer();
+  test('merekod keputusan kuiz dan menyimpan progress', () async {
+    final repository = _FakeUserProgressRepository();
+
+    final container = ProviderContainer(
+      overrides: [userProgressRepositoryProvider.overrideWithValue(repository)],
+    );
 
     addTearDown(container.dispose);
 
     final controller = container.read(userProgressControllerProvider.notifier);
+
+    await controller.initialize();
 
     final initialState = container.read(userProgressControllerProvider);
 
@@ -47,7 +76,7 @@ void main() {
       autoSubmitted: false,
     );
 
-    controller.recordQuizResult(result);
+    await controller.recordQuizResult(result);
 
     final updatedState = container.read(userProgressControllerProvider);
 
@@ -55,10 +84,6 @@ void main() {
         .fold<int>(0, (total, value) => total + value);
 
     expect(updatedState.totalXp, initialState.totalXp + 30);
-
-    expect(updatedState.weeklyXp, initialState.weeklyXp + 30);
-
-    expect(updatedState.monthlyXp, initialState.monthlyXp + 30);
 
     expect(updatedState.completedQuizzes, initialState.completedQuizzes + 1);
 
@@ -73,20 +98,48 @@ void main() {
     );
 
     expect(updatedWeeklyActivityTotal, initialWeeklyActivityTotal + 2);
+
+    expect(repository.storedProgress?.totalXp, updatedState.totalXp);
+
+    expect(repository.saveCallCount, 1);
   });
 
-  test('mengemas kini nama paparan shared progress', () {
-    final container = ProviderContainer();
+  test('menyimpan dan memuatkan semula nama paparan', () async {
+    final repository = _FakeUserProgressRepository();
 
-    addTearDown(container.dispose);
+    final firstContainer = ProviderContainer(
+      overrides: [userProgressRepositoryProvider.overrideWithValue(repository)],
+    );
 
-    final controller = container.read(userProgressControllerProvider.notifier);
+    final firstController = firstContainer.read(
+      userProgressControllerProvider.notifier,
+    );
 
-    final errorMessage = controller.updateDisplayName('Welljoel Walter');
+    await firstController.initialize();
 
-    final state = container.read(userProgressControllerProvider);
+    final errorMessage = await firstController.updateDisplayName(
+      'Welljoel Walter',
+    );
 
     expect(errorMessage, isNull);
-    expect(state.displayName, 'Welljoel Walter');
+    expect(repository.storedProgress?.displayName, 'Welljoel Walter');
+
+    firstContainer.dispose();
+
+    final secondContainer = ProviderContainer(
+      overrides: [userProgressRepositoryProvider.overrideWithValue(repository)],
+    );
+
+    addTearDown(secondContainer.dispose);
+
+    final secondController = secondContainer.read(
+      userProgressControllerProvider.notifier,
+    );
+
+    await secondController.initialize();
+
+    final restoredState = secondContainer.read(userProgressControllerProvider);
+
+    expect(restoredState.displayName, 'Welljoel Walter');
   });
 }

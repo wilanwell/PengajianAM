@@ -25,11 +25,13 @@ void main() {
 
     expect(state.profile!.topicProgressPercentage, 43);
 
-    final invalidNameError = controller.updateDisplayName('A');
+    final invalidNameError = await controller.updateDisplayName('A');
 
     expect(invalidNameError, isNotNull);
 
-    final validNameError = controller.updateDisplayName('Welljoel Walter');
+    final validNameError = await controller.updateDisplayName(
+      'Welljoel Walter',
+    );
 
     expect(validNameError, isNull);
 

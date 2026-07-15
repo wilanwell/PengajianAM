@@ -87,7 +87,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       return;
     }
 
-    final errorMessage = ref
+    final errorMessage = await ref
         .read(profileControllerProvider.notifier)
         .updateDisplayName(value);
 
@@ -162,7 +162,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     ref.read(quizSessionControllerProvider.notifier).reset();
     ref.read(leaderboardControllerProvider.notifier).reset();
     ref.read(profileControllerProvider.notifier).reset();
-    ref.read(userProgressControllerProvider.notifier).reset();
 
     context.goNamed(RouteNames.login);
   }

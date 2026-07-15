@@ -3,7 +3,13 @@ import 'dart:math' as math;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../quiz/domain/entities/quiz_result.dart';
+import '../../data/repositories/shared_preferences_user_progress_repository.dart';
 import '../../domain/entities/user_progress.dart';
+import '../../domain/repositories/user_progress_repository.dart';
+
+final userProgressRepositoryProvider = Provider<UserProgressRepository>((ref) {
+  return SharedPreferencesUserProgressRepository();
+});
 
 final userProgressControllerProvider =
     NotifierProvider<UserProgressController, UserProgress>(
@@ -11,9 +17,31 @@ final userProgressControllerProvider =
     );
 
 class UserProgressController extends Notifier<UserProgress> {
+  Future<void>? _initializationFuture;
+
+  UserProgressRepository get _repository {
+    return ref.read(userProgressRepositoryProvider);
+  }
+
   @override
   UserProgress build() {
     return _initialProgress();
+  }
+
+  Future<void> initialize() {
+    return _initializationFuture ??= _initializeInternal();
+  }
+
+  Future<void> _initializeInternal() async {
+    try {
+      final storedProgress = await _repository.loadProgress();
+
+      if (storedProgress != null) {
+        state = storedProgress;
+      }
+    } catch (_) {
+      // Aplikasi masih boleh digunakan menggunakan mock defaults.
+    }
   }
 
   int calculateEarnedXp(QuizResult result) {
@@ -32,7 +60,9 @@ class UserProgressController extends Notifier<UserProgress> {
     return correctAnswerXp + completionBonus + perfectScoreBonus;
   }
 
-  void recordQuizResult(QuizResult result) {
+  Future<void> recordQuizResult(QuizResult result) async {
+    await initialize();
+
     final earnedXp = calculateEarnedXp(result);
 
     final updatedWeeklyActivity = List<int>.filled(7, 0);
@@ -60,9 +90,13 @@ class UserProgressController extends Notifier<UserProgress> {
       highestScore: math.max(state.highestScore, result.percentage),
       weeklyAnsweredQuestions: List<int>.unmodifiable(updatedWeeklyActivity),
     );
+
+    await _saveSafely();
   }
 
-  String? updateDisplayName(String value) {
+  Future<String?> updateDisplayName(String value) async {
+    await initialize();
+
     final normalizedName = value.trim().replaceAll(RegExp(r'\s+'), ' ');
 
     if (normalizedName.length < 2) {
@@ -75,11 +109,33 @@ class UserProgressController extends Notifier<UserProgress> {
 
     state = state.copyWith(displayName: normalizedName);
 
+    await _saveSafely();
+
     return null;
   }
 
-  void reset() {
+  Future<void> resetToDefaults() async {
     state = _initialProgress();
+
+    await _saveSafely();
+  }
+
+  Future<void> clearLocalProgress() async {
+    try {
+      await _repository.clearProgress();
+    } finally {
+      _initializationFuture = null;
+      state = _initialProgress();
+    }
+  }
+
+  Future<void> _saveSafely() async {
+    try {
+      await _repository.saveProgress(state);
+    } catch (_) {
+      // Perubahan state kekal untuk sesi semasa walaupun
+      // penyimpanan tempatan gagal.
+    }
   }
 
   UserProgress _initialProgress() {

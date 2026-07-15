@@ -30,6 +30,8 @@ class UserProgress {
        assert(currentStreakDays >= 0),
        assert(bestStreakDays >= 0);
 
+  static const int schemaVersion = 1;
+
   final String userId;
   final String displayName;
   final String email;
@@ -72,6 +74,69 @@ class UserProgress {
     return (topicProgress * 100).round();
   }
 
+  Map<String, Object?> toJson() {
+    return {
+      'schemaVersion': schemaVersion,
+      'userId': userId,
+      'displayName': displayName,
+      'email': email,
+      'semesterLabel': semesterLabel,
+      'joinedAt': joinedAt.toIso8601String(),
+      'totalXp': totalXp,
+      'weeklyXp': weeklyXp,
+      'monthlyXp': monthlyXp,
+      'completedQuizzes': completedQuizzes,
+      'totalCorrectAnswers': totalCorrectAnswers,
+      'totalQuizQuestions': totalQuizQuestions,
+      'highestScore': highestScore,
+      'completedTopics': completedTopics,
+      'totalTopics': totalTopics,
+      'currentStreakDays': currentStreakDays,
+      'bestStreakDays': bestStreakDays,
+      'weeklyAnsweredQuestions': weeklyAnsweredQuestions,
+    };
+  }
+
+  factory UserProgress.fromJson(Map<String, dynamic> json) {
+    final version = _readInt(json, 'schemaVersion');
+
+    if (version != schemaVersion) {
+      throw const FormatException('Unsupported user progress schema version.');
+    }
+
+    final joinedAtString = _readString(json, 'joinedAt');
+
+    final joinedAt = DateTime.tryParse(joinedAtString);
+
+    if (joinedAt == null) {
+      throw const FormatException('Invalid joinedAt value.');
+    }
+
+    final weeklyActivity = _readIntList(json, 'weeklyAnsweredQuestions');
+
+    return UserProgress(
+      userId: _readString(json, 'userId'),
+      displayName: _readString(json, 'displayName'),
+      email: _readString(json, 'email'),
+      semesterLabel: _readString(json, 'semesterLabel'),
+      joinedAt: joinedAt,
+      totalXp: _readInt(json, 'totalXp'),
+      weeklyXp: _readInt(json, 'weeklyXp'),
+      monthlyXp: _readInt(json, 'monthlyXp'),
+      completedQuizzes: _readInt(json, 'completedQuizzes'),
+      totalCorrectAnswers: _readInt(json, 'totalCorrectAnswers'),
+      totalQuizQuestions: _readInt(json, 'totalQuizQuestions'),
+      highestScore: _readDouble(json, 'highestScore'),
+      completedTopics: _readInt(json, 'completedTopics'),
+      totalTopics: _readInt(json, 'totalTopics'),
+      currentStreakDays: _readInt(json, 'currentStreakDays'),
+      bestStreakDays: _readInt(json, 'bestStreakDays'),
+      weeklyAnsweredQuestions: List<int>.unmodifiable(
+        _normalizeWeeklyActivity(weeklyActivity),
+      ),
+    );
+  }
+
   UserProgress copyWith({
     String? userId,
     String? displayName,
@@ -112,4 +177,68 @@ class UserProgress {
           weeklyAnsweredQuestions ?? this.weeklyAnsweredQuestions,
     );
   }
+}
+
+String _readString(Map<String, dynamic> json, String key) {
+  final value = json[key];
+
+  if (value is! String || value.trim().isEmpty) {
+    throw FormatException('Invalid String value for $key.');
+  }
+
+  return value;
+}
+
+int _readInt(Map<String, dynamic> json, String key) {
+  final value = json[key];
+
+  if (value is! num) {
+    throw FormatException('Invalid integer value for $key.');
+  }
+
+  return value.toInt();
+}
+
+double _readDouble(Map<String, dynamic> json, String key) {
+  final value = json[key];
+
+  if (value is! num) {
+    throw FormatException('Invalid double value for $key.');
+  }
+
+  return value.toDouble();
+}
+
+List<int> _readIntList(Map<String, dynamic> json, String key) {
+  final value = json[key];
+
+  if (value is! List) {
+    throw FormatException('Invalid list value for $key.');
+  }
+
+  final result = <int>[];
+
+  for (final item in value) {
+    if (item is! num) {
+      throw FormatException('Invalid item inside $key.');
+    }
+
+    result.add(item.toInt());
+  }
+
+  return result;
+}
+
+List<int> _normalizeWeeklyActivity(List<int> values) {
+  final normalized = List<int>.filled(7, 0);
+
+  for (
+    var index = 0;
+    index < values.length && index < normalized.length;
+    index++
+  ) {
+    normalized[index] = values[index] < 0 ? 0 : values[index];
+  }
+
+  return normalized;
 }
