@@ -10,7 +10,7 @@ class MockQuizRepository implements QuizRepository {
       id: 'mock-01',
       topicId: 'mock',
       questionText: 'Apakah ciri utama sesebuah negara yang berdaulat?',
-      options: [
+      options: const [
         'Mempunyai penduduk yang ramai',
         'Bebas mentadbir tanpa dikawal kuasa luar',
         'Mempunyai wilayah yang sangat luas',
@@ -25,7 +25,7 @@ class MockQuizRepository implements QuizRepository {
       id: 'mock-02',
       topicId: 'mock',
       questionText: 'Apakah undang-undang tertinggi di Malaysia?',
-      options: [
+      options: const [
         'Perlembagaan Persekutuan',
         'Peraturan kerajaan tempatan',
         'Pekeliling kementerian',
@@ -40,7 +40,7 @@ class MockQuizRepository implements QuizRepository {
       id: 'mock-03',
       topicId: 'mock',
       questionText: 'Antara berikut, yang manakah prinsip tadbir urus baik?',
-      options: [
+      options: const [
         'Kerahsiaan tanpa batas',
         'Pemusatan semua kuasa',
         'Ketelusan dan akauntabiliti',
@@ -55,7 +55,7 @@ class MockQuizRepository implements QuizRepository {
       id: 'mock-04',
       topicId: 'mock',
       questionText: 'Badan manakah yang menggubal undang-undang Persekutuan?',
-      options: [
+      options: const [
         'Parlimen',
         'Mahkamah',
         'Kabinet sahaja',
@@ -70,7 +70,7 @@ class MockQuizRepository implements QuizRepository {
       id: 'mock-05',
       topicId: 'mock',
       questionText: 'Apakah tujuan utama pengasingan kuasa?',
-      options: [
+      options: const [
         'Menghapuskan badan kehakiman',
         'Mengelakkan pemusatan dan penyalahgunaan kuasa',
         'Memberi semua kuasa kepada eksekutif',
@@ -86,7 +86,7 @@ class MockQuizRepository implements QuizRepository {
       topicId: 'mock',
       questionText:
           'Pilihan raya membolehkan rakyat melakukan perkara berikut:',
-      options: [
+      options: const [
         'Memilih wakil untuk membentuk kerajaan',
         'Menggubal undang-undang secara langsung',
         'Melantik semua hakim',
@@ -101,7 +101,7 @@ class MockQuizRepository implements QuizRepository {
       id: 'mock-07',
       topicId: 'mock',
       questionText: 'Apakah fungsi utama kerajaan tempatan?',
-      options: [
+      options: const [
         'Mengurus hubungan luar negara',
         'Mengawal angkatan tentera',
         'Menyediakan perkhidmatan di kawasan setempat',
@@ -117,7 +117,7 @@ class MockQuizRepository implements QuizRepository {
       topicId: 'mock',
       questionText:
           'Perjanjian Malaysia 1963 berkaitan dengan perkara berikut:',
-      options: [
+      options: const [
         'Pembentukan Malaysia',
         'Pembubaran Parlimen',
         'Pembentukan pilihan raya pertama',
@@ -132,7 +132,7 @@ class MockQuizRepository implements QuizRepository {
       id: 'mock-09',
       topicId: 'mock',
       questionText: 'Apakah maksud kedaulatan undang-undang?',
-      options: [
+      options: const [
         'Undang-undang hanya terpakai kepada rakyat',
         'Semua pihak tertakluk kepada undang-undang',
         'Pemimpin tidak terikat kepada undang-undang',
@@ -147,7 +147,7 @@ class MockQuizRepository implements QuizRepository {
       id: 'mock-10',
       topicId: 'mock',
       questionText: 'Mengapakah perpaduan penting kepada negara?',
-      options: [
+      options: const [
         'Mengurangkan kerjasama masyarakat',
         'Meningkatkan konflik antara kaum',
         'Mewujudkan kestabilan dan keharmonian',
@@ -158,6 +158,159 @@ class MockQuizRepository implements QuizRepository {
           'Perpaduan menyumbang kepada kestabilan, keharmonian '
           'dan kemajuan negara.',
     ),
+    QuizQuestion(
+      id: 'mock-11',
+      topicId: 'mock',
+      questionText: 'Apakah fungsi utama badan eksekutif?',
+      options: const [
+        'Melaksanakan dasar dan undang-undang',
+        'Mentafsir Perlembagaan sahaja',
+        'Mengendalikan semua pilihan raya',
+        'Menggubal keputusan mahkamah',
+      ],
+      correctOptionIndex: 0,
+      explanation:
+          'Badan eksekutif bertanggungjawab melaksanakan '
+          'dasar dan undang-undang dalam pentadbiran negara.',
+    ),
+    QuizQuestion(
+      id: 'mock-12',
+      topicId: 'mock',
+      questionText: 'Apakah peranan utama badan kehakiman?',
+      options: const [
+        'Menyediakan perkhidmatan perbandaran',
+        'Melaksanakan dasar kerajaan',
+        'Mentafsir dan menguatkuasakan undang-undang',
+        'Mengurus kempen pilihan raya',
+      ],
+      correctOptionIndex: 2,
+      explanation:
+          'Badan kehakiman mentafsir undang-undang dan '
+          'menyelesaikan pertikaian berdasarkan undang-undang.',
+    ),
+    QuizQuestion(
+      id: 'mock-13',
+      topicId: 'mock',
+      questionText: 'Apakah maksud akauntabiliti dalam pentadbiran awam?',
+      options: const [
+        'Pegawai bebas daripada sebarang tanggungjawab',
+        'Keputusan pentadbiran tidak perlu dijelaskan',
+        'Pegawai bertanggungjawab terhadap tindakan dan keputusan',
+        'Maklumat kerajaan mesti dirahsiakan sepenuhnya',
+      ],
+      correctOptionIndex: 2,
+      explanation:
+          'Akauntabiliti bermaksud seseorang pegawai atau '
+          'organisasi bertanggungjawab terhadap tindakan dan '
+          'keputusan yang dibuat.',
+    ),
+    QuizQuestion(
+      id: 'mock-14',
+      topicId: 'mock',
+      questionText: 'Apakah tujuan prinsip semak dan imbang?',
+      options: const [
+        'Memberikan kuasa mutlak kepada satu badan',
+        'Mengawal dan menyeimbangkan penggunaan kuasa',
+        'Menghapuskan fungsi badan perundangan',
+        'Mengurangkan peranan undang-undang',
+      ],
+      correctOptionIndex: 1,
+      explanation:
+          'Prinsip semak dan imbang mengelakkan sesuatu badan '
+          'daripada menggunakan kuasa secara berlebihan.',
+    ),
+    QuizQuestion(
+      id: 'mock-15',
+      topicId: 'mock',
+      questionText: 'Apakah kepentingan penyertaan rakyat dalam pemerintahan?',
+      options: const [
+        'Membolehkan rakyat menyumbang kepada proses demokrasi',
+        'Menghapuskan tanggungjawab kerajaan',
+        'Mengurangkan ketelusan pentadbiran',
+        'Menggantikan semua institusi kerajaan',
+      ],
+      correctOptionIndex: 0,
+      explanation:
+          'Penyertaan rakyat membolehkan pandangan masyarakat '
+          'diambil kira dalam proses demokrasi dan pentadbiran.',
+    ),
+    QuizQuestion(
+      id: 'mock-16',
+      topicId: 'mock',
+      questionText: 'Apakah tujuan utama perkhidmatan awam?',
+      options: const [
+        'Memberikan keuntungan kepada pegawai',
+        'Melaksanakan dasar dan memberikan perkhidmatan kepada rakyat',
+        'Menggantikan fungsi semua syarikat swasta',
+        'Mengurus parti politik',
+      ],
+      correctOptionIndex: 1,
+      explanation:
+          'Perkhidmatan awam melaksanakan dasar kerajaan dan '
+          'menyampaikan perkhidmatan kepada masyarakat.',
+    ),
+    QuizQuestion(
+      id: 'mock-17',
+      topicId: 'mock',
+      questionText: 'Yang manakah menunjukkan pentadbiran yang telus?',
+      options: const [
+        'Maklumat keputusan disembunyikan',
+        'Proses membuat keputusan boleh diketahui dan disemak',
+        'Semua urusan dikendalikan tanpa rekod',
+        'Aduan masyarakat tidak diterima',
+      ],
+      correctOptionIndex: 1,
+      explanation:
+          'Ketelusan melibatkan proses dan maklumat yang boleh '
+          'diketahui, difahami dan disemak oleh pihak berkaitan.',
+    ),
+    QuizQuestion(
+      id: 'mock-18',
+      topicId: 'mock',
+      questionText: 'Apakah kesan pentadbiran yang cekap?',
+      options: const [
+        'Sumber digunakan dengan lebih berkesan',
+        'Masa penyampaian perkhidmatan bertambah panjang',
+        'Aduan masyarakat semakin diabaikan',
+        'Kos pentadbiran meningkat tanpa kawalan',
+      ],
+      correctOptionIndex: 0,
+      explanation:
+          'Pentadbiran yang cekap menggunakan masa, tenaga dan '
+          'sumber dengan berkesan untuk mencapai objektif.',
+    ),
+    QuizQuestion(
+      id: 'mock-19',
+      topicId: 'mock',
+      questionText: 'Apakah peranan utama Perlembagaan dalam sesebuah negara?',
+      options: const [
+        'Menetapkan asas pemerintahan dan hak yang berkaitan',
+        'Menghapuskan pembahagian kuasa',
+        'Menggantikan semua keputusan mahkamah',
+        'Memberikan kuasa tanpa had kepada pemerintah',
+      ],
+      correctOptionIndex: 0,
+      explanation:
+          'Perlembagaan menjadi asas kepada struktur pemerintahan, '
+          'pembahagian kuasa dan perlindungan hak.',
+    ),
+    QuizQuestion(
+      id: 'mock-20',
+      topicId: 'mock',
+      questionText: 'Pilih susunan umum proses membuat keputusan yang logik.',
+      options: const [
+        'Kenal pasti masalah, kumpul maklumat, nilai pilihan, buat keputusan',
+        'Buat keputusan, kenal pasti masalah, nilai pilihan, kumpul maklumat',
+        'Nilai pilihan, buat keputusan, kumpul maklumat, kenal pasti masalah',
+        'Kumpul maklumat, buat keputusan, kenal pasti masalah, nilai pilihan',
+      ],
+      correctOptionIndex: 0,
+      explanation:
+          'Proses yang logik bermula dengan mengenal pasti masalah, '
+          'diikuti pengumpulan maklumat, penilaian pilihan dan '
+          'pembuatan keputusan.',
+      shuffleOptions: false,
+    ),
   ]);
 
   @override
@@ -167,21 +320,19 @@ class MockQuizRepository implements QuizRepository {
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 350));
 
-    final questions = <QuizQuestion>[];
-
-    for (var index = 0; index < limit; index++) {
-      final sourceQuestion = _questionBank[index % _questionBank.length];
-
-      final cycle = index ~/ _questionBank.length;
-
-      questions.add(
-        sourceQuestion.copyWith(
-          id: '${sourceQuestion.id}-${cycle + 1}',
-          topicId: topicId,
-        ),
-      );
+    if (limit <= 0) {
+      return const [];
     }
 
-    return List<QuizQuestion>.unmodifiable(questions);
+    final resolvedLimit = limit > _questionBank.length
+        ? _questionBank.length
+        : limit;
+
+    final selectedQuestions = _questionBank
+        .take(resolvedLimit)
+        .map((question) => question.copyWith(topicId: topicId))
+        .toList(growable: false);
+
+    return List<QuizQuestion>.unmodifiable(selectedQuestions);
   }
 }

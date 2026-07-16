@@ -76,6 +76,36 @@ class QuizSessionController extends Notifier<QuizSessionState> {
         return;
       }
 
+      if (rawQuestions.length < questionCount) {
+        state = QuizSessionState(
+          status: QuizSessionStatus.failure,
+          topicId: topicId,
+          mode: mode,
+          requestedQuestionCount: questionCount,
+          errorMessage:
+              'Hanya ${rawQuestions.length} soalan unik tersedia '
+              'untuk topik ini.',
+        );
+
+        return;
+      }
+
+      final uniqueQuestionIds = rawQuestions
+          .map((question) => question.id)
+          .toSet();
+
+      if (uniqueQuestionIds.length != rawQuestions.length) {
+        state = QuizSessionState(
+          status: QuizSessionStatus.failure,
+          topicId: topicId,
+          mode: mode,
+          requestedQuestionCount: questionCount,
+          errorMessage: 'Bank soalan mengandungi rekod yang berulang.',
+        );
+
+        return;
+      }
+
       final startedAt = DateTime.now();
 
       final currentUser = ref.read(userProgressControllerProvider);
