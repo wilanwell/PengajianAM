@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pengajian_am_stpm_objektif/app/app.dart';
+import 'package:pengajian_am_stpm_objektif/features/authentication/domain/entities/auth_registration_result.dart';
 import 'package:pengajian_am_stpm_objektif/features/authentication/domain/entities/auth_session.dart';
 import 'package:pengajian_am_stpm_objektif/features/authentication/domain/repositories/auth_session_repository.dart';
 import 'package:pengajian_am_stpm_objektif/features/authentication/presentation/controllers/auth_session_controller.dart';
-import 'package:pengajian_am_stpm_objektif/features/authentication/domain/entities/auth_registration_result.dart';
+import 'package:pengajian_am_stpm_objektif/features/topics/domain/entities/study_topic.dart';
+import 'package:pengajian_am_stpm_objektif/features/topics/domain/repositories/topics_repository.dart';
+import 'package:pengajian_am_stpm_objektif/features/topics/presentation/controllers/topics_controller.dart';
+import 'package:pengajian_am_stpm_objektif/features/topics/presentation/widgets/topic_card.dart';
 
 class _FakeAuthSessionRepository implements AuthSessionRepository {
   AuthSession? storedSession;
@@ -65,13 +69,54 @@ class _FakeAuthSessionRepository implements AuthSessionRepository {
   }
 }
 
+class _FakeTopicsRepository implements TopicsRepository {
+  const _FakeTopicsRepository();
+
+  @override
+  Future<List<StudyTopic>> fetchTopics() async {
+    return const [
+      StudyTopic(
+        id: 'topic-s1-01',
+        code: 'S1-01',
+        semester: 1,
+        title: 'Kemahiran Insaniah',
+        description: 'Kemahiran mencari dan menganalisis maklumat.',
+        questionCount: 20,
+        completedQuestionCount: 0,
+      ),
+      StudyTopic(
+        id: 'topic-s1-02',
+        code: 'S1-02',
+        semester: 1,
+        title: 'Negara Berdaulat',
+        description: 'Konsep dan ciri negara berdaulat.',
+        questionCount: 20,
+        completedQuestionCount: 0,
+      ),
+    ];
+  }
+}
+
 Widget _buildTestApp({AuthSession? initialSession}) {
-  final repository = _FakeAuthSessionRepository()
+  final authRepository = _FakeAuthSessionRepository()
     ..storedSession = initialSession;
 
   return ProviderScope(
-    overrides: [authSessionRepositoryProvider.overrideWithValue(repository)],
+    overrides: [
+      authSessionRepositoryProvider.overrideWithValue(authRepository),
+      topicsRepositoryProvider.overrideWithValue(const _FakeTopicsRepository()),
+    ],
     child: const App(),
+  );
+}
+
+Finder _findTopicCard(String topicTitle, {bool skipOffstage = true}) {
+  return find.byWidgetPredicate(
+    (widget) {
+      return widget is TopicCard && widget.topic.title == topicTitle;
+    },
+    description: 'TopicCard untuk $topicTitle',
+    skipOffstage: skipOffstage,
   );
 }
 
@@ -85,7 +130,7 @@ void main() {
 
     expect(find.text('Selamat Datang'), findsOneWidget);
 
-    expect(find.text('Log Masuk'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Log Masuk'), findsOneWidget);
   });
 
   testWidgets('splash membawa pengguna dengan sesi ke home', (tester) async {
@@ -93,6 +138,8 @@ void main() {
       _buildTestApp(
         initialSession: AuthSession(
           isAuthenticated: true,
+          userId: 'existing-widget-user',
+          email: 'existing@example.com',
           signedInAt: DateTime(2026, 7, 16),
         ),
       ),
@@ -102,13 +149,13 @@ void main() {
 
     expect(find.text('Utama'), findsOneWidget);
 
-    expect(find.text('Topik'), findsOneWidget);
+    expect(find.text('Topik'), findsWidgets);
 
-    expect(find.text('Kuiz'), findsOneWidget);
+    expect(find.text('Kuiz'), findsWidgets);
 
-    expect(find.text('Ranking'), findsOneWidget);
+    expect(find.text('Ranking'), findsWidgets);
 
-    expect(find.text('Profil'), findsOneWidget);
+    expect(find.text('Profil'), findsWidgets);
   });
 
   testWidgets('memaparkan borang log masuk', (tester) async {
@@ -122,7 +169,7 @@ void main() {
 
     expect(find.text('Kata laluan'), findsOneWidget);
 
-    expect(find.text('Log Masuk'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Log Masuk'), findsOneWidget);
   });
 
   testWidgets('membuka halaman pendaftaran', (tester) async {
@@ -147,7 +194,9 @@ void main() {
     expect(find.text('Sahkan kata laluan'), findsOneWidget);
   });
 
-  testWidgets('log masuk dan membuka navigasi utama', (tester) async {
+  testWidgets('log masuk dan membuka topik daripada repository', (
+    tester,
+  ) async {
     await tester.pumpWidget(_buildTestApp());
 
     await tester.pumpAndSettle();
@@ -170,27 +219,47 @@ void main() {
 
     await tester.tap(loginButton);
 
-    await tester.pump();
-
-    // Mock login menggunakan delay 600 milisaat.
-    await tester.pump(const Duration(milliseconds: 700));
-
+    // Fake authentication repository menyelesaikan
+    // proses log masuk tanpa network request.
     await tester.pumpAndSettle();
 
     expect(find.text('Utama'), findsOneWidget);
 
-    expect(find.text('Topik'), findsOneWidget);
+    expect(find.byType(NavigationBar), findsOneWidget);
 
-    expect(find.text('Kuiz'), findsOneWidget);
+    final topicsNavigationLabel = find.descendant(
+      of: find.byType(NavigationBar),
+      matching: find.text('Topik'),
+    );
 
-    expect(find.text('Ranking'), findsOneWidget);
+    expect(topicsNavigationLabel, findsOneWidget);
 
-    expect(find.text('Profil'), findsOneWidget);
-
-    await tester.tap(find.text('Topik'));
+    await tester.tap(topicsNavigationLabel);
 
     await tester.pumpAndSettle();
 
     expect(find.text('Topik Pembelajaran'), findsOneWidget);
+
+    final kemahiranInsaniahCard = _findTopicCard(
+      'Kemahiran Insaniah',
+      skipOffstage: false,
+    );
+
+    expect(kemahiranInsaniahCard, findsOneWidget);
+
+    final negaraBerdaulatCard = _findTopicCard(
+      'Negara Berdaulat',
+      skipOffstage: false,
+    );
+
+    expect(negaraBerdaulatCard, findsOneWidget);
+
+    await tester.ensureVisible(negaraBerdaulatCard);
+
+    await tester.pumpAndSettle();
+
+    final visibleNegaraBerdaulatCard = _findTopicCard('Negara Berdaulat');
+
+    expect(visibleNegaraBerdaulatCard, findsOneWidget);
   });
 }
