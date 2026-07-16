@@ -6,6 +6,9 @@ import 'package:pengajian_am_stpm_objektif/features/authentication/domain/entiti
 import 'package:pengajian_am_stpm_objektif/features/authentication/domain/entities/auth_session.dart';
 import 'package:pengajian_am_stpm_objektif/features/authentication/domain/repositories/auth_session_repository.dart';
 import 'package:pengajian_am_stpm_objektif/features/authentication/presentation/controllers/auth_session_controller.dart';
+import 'package:pengajian_am_stpm_objektif/features/progress/domain/entities/user_progress.dart';
+import 'package:pengajian_am_stpm_objektif/features/progress/domain/repositories/user_progress_repository.dart';
+import 'package:pengajian_am_stpm_objektif/features/progress/presentation/controllers/user_progress_controller.dart';
 import 'package:pengajian_am_stpm_objektif/features/topics/domain/entities/study_topic.dart';
 import 'package:pengajian_am_stpm_objektif/features/topics/domain/repositories/topics_repository.dart';
 import 'package:pengajian_am_stpm_objektif/features/topics/presentation/controllers/topics_controller.dart';
@@ -97,14 +100,85 @@ class _FakeTopicsRepository implements TopicsRepository {
   }
 }
 
+class _FakeUserProgressRepository implements UserProgressRepository {
+  _FakeUserProgressRepository({required String userId, required String email})
+    : progress = UserProgress(
+        userId: userId,
+        displayName: 'PelajarPA',
+        email: email,
+        semesterLabel: 'Semester 1',
+        joinedAt: DateTime(2026, 1, 10),
+        totalXp: 1820,
+        weeklyXp: 1820,
+        monthlyXp: 6540,
+        completedQuizzes: 8,
+        totalCorrectAnswers: 122,
+        totalQuizQuestions: 160,
+        highestScore: 82,
+        completedTopics: 3,
+        totalTopics: 7,
+        currentStreakDays: 4,
+        bestStreakDays: 9,
+        weeklyAnsweredQuestions: List<int>.unmodifiable([
+          12,
+          18,
+          8,
+          24,
+          20,
+          30,
+          16,
+        ]),
+      );
+
+  UserProgress progress;
+
+  @override
+  Future<UserProgress?> loadProgress() async {
+    return progress;
+  }
+
+  @override
+  Future<void> saveProgress(UserProgress progress) async {
+    this.progress = progress;
+  }
+
+  @override
+  Future<void> clearProgress() async {
+    progress = progress.copyWith(
+      displayName: 'PelajarPA',
+      totalXp: 0,
+      weeklyXp: 0,
+      monthlyXp: 0,
+      completedQuizzes: 0,
+      totalCorrectAnswers: 0,
+      totalQuizQuestions: 0,
+      highestScore: 0,
+      completedTopics: 0,
+      currentStreakDays: 0,
+      bestStreakDays: 0,
+      weeklyAnsweredQuestions: List<int>.unmodifiable([0, 0, 0, 0, 0, 0, 0]),
+    );
+  }
+}
+
 Widget _buildTestApp({AuthSession? initialSession}) {
   final authRepository = _FakeAuthSessionRepository()
     ..storedSession = initialSession;
+
+  final userId = initialSession?.userId ?? 'widget-user';
+
+  final email = initialSession?.email ?? 'student@example.com';
+
+  final progressRepository = _FakeUserProgressRepository(
+    userId: userId,
+    email: email,
+  );
 
   return ProviderScope(
     overrides: [
       authSessionRepositoryProvider.overrideWithValue(authRepository),
       topicsRepositoryProvider.overrideWithValue(const _FakeTopicsRepository()),
+      userProgressRepositoryProvider.overrideWithValue(progressRepository),
     ],
     child: const App(),
   );
@@ -215,17 +289,11 @@ void main() {
 
     await tester.ensureVisible(loginButton);
 
-    await tester.pumpAndSettle();
-
     await tester.tap(loginButton);
 
-    // Fake authentication repository menyelesaikan
-    // proses log masuk tanpa network request.
     await tester.pumpAndSettle();
 
     expect(find.text('Utama'), findsOneWidget);
-
-    expect(find.byType(NavigationBar), findsOneWidget);
 
     final topicsNavigationLabel = find.descendant(
       of: find.byType(NavigationBar),
@@ -240,26 +308,21 @@ void main() {
 
     expect(find.text('Topik Pembelajaran'), findsOneWidget);
 
-    final kemahiranInsaniahCard = _findTopicCard(
+    final firstTopic = _findTopicCard(
       'Kemahiran Insaniah',
       skipOffstage: false,
     );
 
-    expect(kemahiranInsaniahCard, findsOneWidget);
+    final secondTopic = _findTopicCard('Negara Berdaulat', skipOffstage: false);
 
-    final negaraBerdaulatCard = _findTopicCard(
-      'Negara Berdaulat',
-      skipOffstage: false,
-    );
+    expect(firstTopic, findsOneWidget);
 
-    expect(negaraBerdaulatCard, findsOneWidget);
+    expect(secondTopic, findsOneWidget);
 
-    await tester.ensureVisible(negaraBerdaulatCard);
+    await tester.ensureVisible(secondTopic);
 
     await tester.pumpAndSettle();
 
-    final visibleNegaraBerdaulatCard = _findTopicCard('Negara Berdaulat');
-
-    expect(visibleNegaraBerdaulatCard, findsOneWidget);
+    expect(_findTopicCard('Negara Berdaulat'), findsOneWidget);
   });
 }

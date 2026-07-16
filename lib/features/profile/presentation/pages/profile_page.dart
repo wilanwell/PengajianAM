@@ -10,6 +10,7 @@ import '../../../authentication/presentation/controllers/auth_session_controller
 import '../../../authentication/presentation/controllers/login_controller.dart';
 import '../../../home/presentation/controllers/home_controller.dart';
 import '../../../leaderboard/presentation/controllers/leaderboard_controller.dart';
+import '../../../progress/domain/entities/user_progress.dart';
 import '../../../progress/presentation/controllers/user_progress_controller.dart';
 import '../../../quiz/presentation/controllers/quiz_history_controller.dart';
 import '../../../quiz/presentation/controllers/quiz_session_controller.dart';
@@ -120,8 +121,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       ),
       children: const [
         Text(
-          'Aplikasi latihan objektif untuk membantu '
-          'pelajar mengulang kaji Pengajian AM STPM.',
+          'Aplikasi latihan objektif untuk '
+          'membantu pelajar mengulang kaji '
+          'Pengajian AM STPM.',
         ),
       ],
     );
@@ -138,8 +140,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         return AlertDialog(
           title: const Text('Log Keluar?'),
           content: const Text(
-            'Anda perlu log masuk semula untuk '
-            'menggunakan aplikasi.',
+            'Anda perlu log masuk semula '
+            'untuk menggunakan aplikasi.',
           ),
           actions: [
             TextButton(
@@ -167,35 +169,66 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       _isLoggingOut = true;
     });
 
-    await ref.read(authSessionControllerProvider.notifier).signOut();
+    try {
+      await ref.read(authSessionControllerProvider.notifier).signOut();
 
-    if (!mounted) {
-      return;
+      if (!mounted) {
+        return;
+      }
+
+      ref.read(loginControllerProvider.notifier).reset();
+
+      ref.read(homeControllerProvider.notifier).reset();
+
+      ref.read(topicsControllerProvider.notifier).reset();
+
+      ref.read(quizSetupControllerProvider.notifier).reset();
+
+      ref.read(quizSessionControllerProvider.notifier).reset();
+
+      ref.read(quizHistoryControllerProvider.notifier).reset();
+
+      ref.read(leaderboardControllerProvider.notifier).reset();
+
+      ref.read(profileControllerProvider.notifier).reset();
+
+      ref.read(userProgressControllerProvider.notifier).resetState();
+
+      context.goNamed(RouteNames.login);
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isLoggingOut = false;
+      });
+
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('Log keluar tidak dapat diselesaikan.')),
+        );
     }
-
-    ref.read(loginControllerProvider.notifier).reset();
-    ref.read(homeControllerProvider.notifier).reset();
-    ref.read(topicsControllerProvider.notifier).reset();
-
-    ref.read(quizSetupControllerProvider.notifier).reset();
-
-    ref.read(quizSessionControllerProvider.notifier).reset();
-
-    ref.read(quizHistoryControllerProvider.notifier).reset();
-
-    ref.read(leaderboardControllerProvider.notifier).reset();
-
-    ref.read(profileControllerProvider.notifier).reset();
-
-    context.goNamed(RouteNames.login);
   }
 
   @override
   Widget build(BuildContext context) {
-    ref.listen(userProgressControllerProvider, (previous, next) {
-      ref
-          .read(profileControllerProvider.notifier)
-          .loadProfile(forceRefresh: true);
+    ref.listen<UserProgress>(userProgressControllerProvider, (previous, next) {
+      if (_isLoggingOut) {
+        return;
+      }
+
+      final currentProfileState = ref.read(profileControllerProvider);
+
+      if (currentProfileState.status == ProfileStatus.loading) {
+        return;
+      }
+
+      final controller = ref.read(profileControllerProvider.notifier);
+
+      controller.reset();
+      controller.loadProfile();
     });
 
     final state = ref.watch(profileControllerProvider);
@@ -276,8 +309,8 @@ class _ProfileContent extends StatelessWidget {
           Text('Pencapaian', style: textTheme.titleLarge),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            'Lengkapkan aktiviti pembelajaran untuk '
-            'membuka lebih banyak pencapaian.',
+            'Lengkapkan aktiviti pembelajaran '
+            'untuk membuka lebih banyak pencapaian.',
             style: textTheme.bodyMedium?.copyWith(
               color: AppColors.secondaryText,
             ),

@@ -2,13 +2,14 @@ import 'dart:math' as math;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/services/supabase_client_provider.dart';
 import '../../../quiz/domain/entities/quiz_result.dart';
-import '../../data/repositories/shared_preferences_user_progress_repository.dart';
+import '../../data/repositories/supabase_user_progress_repository.dart';
 import '../../domain/entities/user_progress.dart';
 import '../../domain/repositories/user_progress_repository.dart';
 
 final userProgressRepositoryProvider = Provider<UserProgressRepository>((ref) {
-  return SharedPreferencesUserProgressRepository();
+  return SupabaseUserProgressRepository(ref.read(supabaseClientProvider));
 });
 
 final userProgressControllerProvider =
@@ -25,22 +26,33 @@ class UserProgressController extends Notifier<UserProgress> {
 
   @override
   UserProgress build() {
-    return _initialProgress();
+    return _emptyProgress();
   }
 
-  Future<void> initialize() {
+  Future<void> initialize({bool forceRefresh = false}) {
+    if (forceRefresh) {
+      _initializationFuture = null;
+    }
+
     return _initializationFuture ??= _initializeInternal();
+  }
+
+  Future<void> refresh() {
+    return initialize(forceRefresh: true);
   }
 
   Future<void> _initializeInternal() async {
     try {
-      final storedProgress = await _repository.loadProgress();
+      final progress = await _repository.loadProgress();
 
-      if (storedProgress != null) {
-        state = storedProgress;
+      if (progress == null) {
+        throw StateError('Progress pengguna tidak tersedia.');
       }
+
+      state = progress;
     } catch (_) {
-      // Aplikasi masih boleh digunakan menggunakan mock defaults.
+      _initializationFuture = null;
+      rethrow;
     }
   }
 
@@ -60,19 +72,30 @@ class UserProgressController extends Notifier<UserProgress> {
     return correctAnswerXp + completionBonus + perfectScoreBonus;
   }
 
-  Future<void> recordQuizResult(QuizResult result) {
-    return recordServerQuizResult(
-      result: result,
-      earnedXp: calculateEarnedXp(result),
-    );
+  /// Digunakan untuk test atau flow bukan Supabase.
+  Future<void> recordQuizResult(QuizResult result) async {
+    await initialize();
+
+    final earnedXp = calculateEarnedXp(result);
+
+    _applyQuizResultLocally(result: result, earnedXp: earnedXp);
+
+    await _saveSafely();
   }
 
+  /// Supabase sudah menyimpan markah dan XP.
+  /// Aplikasi hanya perlu mengambil semula nilai server.
   Future<void> recordServerQuizResult({
     required QuizResult result,
     required int earnedXp,
   }) async {
-    await initialize();
+    await initialize(forceRefresh: true);
+  }
 
+  void _applyQuizResultLocally({
+    required QuizResult result,
+    required int earnedXp,
+  }) {
     final normalizedEarnedXp = earnedXp < 0 ? 0 : earnedXp;
 
     final updatedWeeklyActivity = List<int>.filled(7, 0);
@@ -100,8 +123,6 @@ class UserProgressController extends Notifier<UserProgress> {
       highestScore: math.max(state.highestScore, result.percentage),
       weeklyAnsweredQuestions: List<int>.unmodifiable(updatedWeeklyActivity),
     );
-
-    await _saveSafely();
   }
 
   Future<String?> updateDisplayName(String value) async {
@@ -110,71 +131,81 @@ class UserProgressController extends Notifier<UserProgress> {
     final normalizedName = value.trim().replaceAll(RegExp(r'\s+'), ' ');
 
     if (normalizedName.length < 2) {
-      return 'Nama mestilah sekurang-kurangnya 2 aksara.';
+      return 'Nama mestilah sekurang-kurangnya '
+          '2 aksara.';
     }
 
     if (normalizedName.length > 30) {
-      return 'Nama tidak boleh melebihi 30 aksara.';
+      return 'Nama tidak boleh melebihi '
+          '30 aksara.';
     }
+
+    final previousState = state;
 
     state = state.copyWith(displayName: normalizedName);
 
-    await _saveSafely();
-
-    return null;
-  }
-
-  Future<void> resetToDefaults() async {
-    state = _initialProgress();
-
-    await _saveSafely();
-  }
-
-  Future<void> clearLocalProgress() async {
     try {
-      await _repository.clearProgress();
-    } finally {
-      _initializationFuture = null;
-      state = _initialProgress();
+      await _repository.saveProgress(state);
+
+      return null;
+    } catch (_) {
+      state = previousState;
+
+      return 'Nama paparan tidak dapat '
+          'dikemas kini.';
     }
+  }
+
+  Future<void> resetToDefaults() {
+    return clearLocalProgress();
+  }
+
+  /// Nama ini dikekalkan supaya SettingsPage
+  /// sedia ada tidak perlu diubah.
+  Future<void> clearLocalProgress() async {
+    await _repository.clearProgress();
+
+    _initializationFuture = null;
+
+    await initialize(forceRefresh: true);
+  }
+
+  void resetState() {
+    _initializationFuture = null;
+    state = _emptyProgress();
+  }
+
+  void reset() {
+    resetState();
   }
 
   Future<void> _saveSafely() async {
     try {
       await _repository.saveProgress(state);
     } catch (_) {
-      // Perubahan state kekal untuk sesi semasa walaupun
-      // penyimpanan tempatan gagal.
+      // State kekal untuk sesi semasa.
     }
   }
 
-  UserProgress _initialProgress() {
+  UserProgress _emptyProgress() {
     return UserProgress(
-      userId: 'current-user',
-      displayName: 'PelajarPA',
-      email: 'pelajar@example.com',
+      userId: '',
+      displayName: 'Pelajar',
+      email: '',
       semesterLabel: 'Semester 1',
-      joinedAt: DateTime(2026, 1, 10),
-      totalXp: 1820,
-      weeklyXp: 1820,
-      monthlyXp: 6540,
-      completedQuizzes: 8,
-      totalCorrectAnswers: 122,
-      totalQuizQuestions: 160,
-      highestScore: 82.0,
-      completedTopics: 3,
-      totalTopics: 7,
-      currentStreakDays: 4,
-      bestStreakDays: 9,
-      weeklyAnsweredQuestions: List<int>.unmodifiable([
-        12,
-        18,
-        8,
-        24,
-        20,
-        30,
-        16,
-      ]),
+      joinedAt: DateTime(2026, 1, 1),
+      totalXp: 0,
+      weeklyXp: 0,
+      monthlyXp: 0,
+      completedQuizzes: 0,
+      totalCorrectAnswers: 0,
+      totalQuizQuestions: 0,
+      highestScore: 0,
+      completedTopics: 0,
+      totalTopics: 0,
+      currentStreakDays: 0,
+      bestStreakDays: 0,
+      weeklyAnsweredQuestions: List<int>.unmodifiable([0, 0, 0, 0, 0, 0, 0]),
     );
   }
 }

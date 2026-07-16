@@ -38,6 +38,7 @@ class QuizResultPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final textTheme = Theme.of(context).textTheme;
+
     final percentage = result.percentage.round();
 
     return Scaffold(
@@ -101,9 +102,10 @@ class QuizResultPage extends ConsumerWidget {
                   const SizedBox(height: AppSpacing.xs),
                   Text(
                     result.autoSubmitted
-                        ? 'Masa tamat dan kuiz telah dihantar '
-                              'secara automatik.'
-                        : 'Kuiz anda telah berjaya dihantar.',
+                        ? 'Masa tamat dan kuiz telah '
+                              'dihantar secara automatik.'
+                        : 'Kuiz anda telah berjaya '
+                              'dihantar.',
                     textAlign: TextAlign.center,
                     style: textTheme.bodyMedium?.copyWith(
                       color: AppColors.secondaryText,
@@ -112,6 +114,8 @@ class QuizResultPage extends ConsumerWidget {
                 ],
               ),
             ),
+            const SizedBox(height: AppSpacing.md),
+            _EarnedXpCard(earnedXp: result.earnedXp),
             const SizedBox(height: AppSpacing.lg),
             LayoutBuilder(
               builder: (context, constraints) {
@@ -192,8 +196,68 @@ class QuizResultPage extends ConsumerWidget {
               },
               child: const Text('Kembali ke Topik'),
             ),
+            const SizedBox(height: AppSpacing.lg),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _EarnedXpCard extends StatelessWidget {
+  const _EarnedXpCard({required this.earnedXp});
+
+  final int earnedXp;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return Container(
+      width: double.infinity,
+      padding: AppSpacing.largeCardPadding,
+      decoration: BoxDecoration(
+        color: AppColors.warningBackground,
+        borderRadius: AppRadius.extraLarge,
+        border: Border.all(color: AppColors.accentGold.withAlpha(110)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: const BoxDecoration(
+              color: AppColors.accentGold,
+              borderRadius: AppRadius.large,
+            ),
+            child: const Icon(
+              Icons.star_rounded,
+              size: 32,
+              color: AppColors.primaryText,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('XP Diperoleh', style: textTheme.titleMedium),
+                const SizedBox(height: AppSpacing.xxs),
+                Text(
+                  'Ganjaran daripada percubaan kuiz ini.',
+                  style: textTheme.bodySmall?.copyWith(
+                    color: AppColors.secondaryText,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Text(
+            '+$earnedXp XP',
+            style: textTheme.headlineSmall?.copyWith(color: AppColors.primary),
+          ),
+        ],
       ),
     );
   }

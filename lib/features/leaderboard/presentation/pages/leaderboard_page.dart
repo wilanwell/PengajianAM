@@ -5,6 +5,7 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../progress/presentation/controllers/user_progress_controller.dart';
+import '../../../progress/domain/entities/user_progress.dart';
 import '../../domain/entities/leaderboard_entry.dart';
 import '../../domain/entities/leaderboard_period.dart';
 import '../controllers/leaderboard_controller.dart';
@@ -34,10 +35,20 @@ class _LeaderboardPageState extends ConsumerState<LeaderboardPage> {
 
   @override
   Widget build(BuildContext context) {
-    ref.listen(userProgressControllerProvider, (previous, next) {
-      ref
-          .read(leaderboardControllerProvider.notifier)
-          .loadLeaderboard(forceRefresh: true);
+    ref.listen<UserProgress>(userProgressControllerProvider, (previous, next) {
+      final currentLeaderboardState = ref.read(leaderboardControllerProvider);
+
+      if (currentLeaderboardState.status == LeaderboardStatus.loading) {
+        return;
+      }
+
+      final selectedPeriod = currentLeaderboardState.period;
+
+      final controller = ref.read(leaderboardControllerProvider.notifier);
+
+      controller.reset();
+
+      controller.loadLeaderboard(period: selectedPeriod);
     });
     final state = ref.watch(leaderboardControllerProvider);
 

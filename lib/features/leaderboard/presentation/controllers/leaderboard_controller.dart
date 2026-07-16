@@ -152,7 +152,9 @@ class LeaderboardController extends Notifier<LeaderboardState> {
     try {
       await Future<void>.delayed(const Duration(milliseconds: 350));
 
-      await ref.read(userProgressControllerProvider.notifier).initialize();
+      await ref
+          .read(userProgressControllerProvider.notifier)
+          .initialize(forceRefresh: forceRefresh);
 
       final progress = ref.read(userProgressControllerProvider);
 

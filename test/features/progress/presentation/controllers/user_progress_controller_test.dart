@@ -8,29 +8,104 @@ import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_qu
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_result.dart';
 
 class _FakeUserProgressRepository implements UserProgressRepository {
-  UserProgress? storedProgress;
+  _FakeUserProgressRepository({required this.progress});
+
+  UserProgress progress;
+  int loadCallCount = 0;
   int saveCallCount = 0;
+  int clearCallCount = 0;
 
   @override
   Future<UserProgress?> loadProgress() async {
-    return storedProgress;
+    loadCallCount++;
+    return progress;
   }
 
   @override
   Future<void> saveProgress(UserProgress progress) async {
-    storedProgress = progress;
+    this.progress = progress;
     saveCallCount++;
   }
 
   @override
   Future<void> clearProgress() async {
-    storedProgress = null;
+    clearCallCount++;
+
+    progress = progress.copyWith(
+      displayName: 'Pelajar Ujian',
+      totalXp: 0,
+      weeklyXp: 0,
+      monthlyXp: 0,
+      completedQuizzes: 0,
+      totalCorrectAnswers: 0,
+      totalQuizQuestions: 0,
+      highestScore: 0,
+      completedTopics: 0,
+      currentStreakDays: 0,
+      bestStreakDays: 0,
+      weeklyAnsweredQuestions: List<int>.unmodifiable([0, 0, 0, 0, 0, 0, 0]),
+    );
   }
 }
 
+UserProgress _createProgress({int totalXp = 1820, int completedQuizzes = 8}) {
+  return UserProgress(
+    userId: 'user-1',
+    displayName: 'PelajarPA',
+    email: 'student@example.com',
+    semesterLabel: 'Semester 1',
+    joinedAt: DateTime(2026, 1, 10),
+    totalXp: totalXp,
+    weeklyXp: totalXp,
+    monthlyXp: 6540,
+    completedQuizzes: completedQuizzes,
+    totalCorrectAnswers: 122,
+    totalQuizQuestions: 160,
+    highestScore: 82,
+    completedTopics: 3,
+    totalTopics: 7,
+    currentStreakDays: 4,
+    bestStreakDays: 9,
+    weeklyAnsweredQuestions: List<int>.unmodifiable([
+      12,
+      18,
+      8,
+      24,
+      20,
+      30,
+      16,
+    ]),
+  );
+}
+
+QuizResult _createResult() {
+  final question = QuizQuestion(
+    id: 'q1',
+    topicId: 'topic-s1-02',
+    questionText: 'Apakah maksud negara berdaulat?',
+    options: const ['Bebas mentadbir', 'Dikawal kuasa luar'],
+    correctOptionIndex: 0,
+    explanation: 'Negara berdaulat bebas mentadbir.',
+  );
+
+  return QuizResult(
+    topicId: 'topic-s1-02',
+    topicCode: 'S1-02',
+    topicTitle: 'Negara Berdaulat',
+    mode: QuizMode.practice,
+    questions: [question],
+    selectedAnswers: const {'q1': 0},
+    correctAnswers: 1,
+    answeredQuestions: 1,
+    earnedXp: 80,
+    elapsedTime: const Duration(seconds: 30),
+    autoSubmitted: false,
+  );
+}
+
 void main() {
-  test('merekod keputusan kuiz dan menyimpan progress', () async {
-    final repository = _FakeUserProgressRepository();
+  test('memuatkan progress daripada repository', () async {
+    final repository = _FakeUserProgressRepository(progress: _createProgress());
 
     final container = ProviderContainer(
       overrides: [userProgressRepositoryProvider.overrideWithValue(repository)],
@@ -42,104 +117,98 @@ void main() {
 
     await controller.initialize();
 
-    final initialState = container.read(userProgressControllerProvider);
+    final state = container.read(userProgressControllerProvider);
 
-    final initialWeeklyActivityTotal = initialState.weeklyAnsweredQuestions
-        .fold<int>(0, (total, value) => total + value);
+    expect(state.userId, 'user-1');
 
-    final firstQuestion = QuizQuestion(
-      id: 'q1',
-      topicId: 'topic-s1-02',
-      questionText: 'Soalan pertama',
-      options: const ['Betul', 'Salah'],
-      correctOptionIndex: 0,
-      explanation: 'Penerangan pertama',
+    expect(state.totalXp, 1820);
+
+    expect(state.completedQuizzes, 8);
+
+    expect(repository.loadCallCount, 1);
+  });
+
+  test('mengemas kini nama paparan', () async {
+    final repository = _FakeUserProgressRepository(progress: _createProgress());
+
+    final container = ProviderContainer(
+      overrides: [userProgressRepositoryProvider.overrideWithValue(repository)],
     );
 
-    final secondQuestion = QuizQuestion(
-      id: 'q2',
-      topicId: 'topic-s1-02',
-      questionText: 'Soalan kedua',
-      options: const ['Pilihan A', 'Pilihan B'],
-      correctOptionIndex: 1,
-      explanation: 'Penerangan kedua',
-    );
+    addTearDown(container.dispose);
 
-    final result = QuizResult(
-      topicId: 'topic-s1-02',
-      mode: QuizMode.practice,
-      questions: [firstQuestion, secondQuestion],
-      selectedAnswers: const {'q1': 0, 'q2': 0},
-      correctAnswers: 1,
-      answeredQuestions: 2,
-      elapsedTime: const Duration(minutes: 1),
-      autoSubmitted: false,
-    );
+    final controller = container.read(userProgressControllerProvider.notifier);
 
-    await controller.recordQuizResult(result);
+    await controller.initialize();
 
-    final updatedState = container.read(userProgressControllerProvider);
+    final errorMessage = await controller.updateDisplayName('Welljoel Walter');
 
-    final updatedWeeklyActivityTotal = updatedState.weeklyAnsweredQuestions
-        .fold<int>(0, (total, value) => total + value);
-
-    expect(updatedState.totalXp, initialState.totalXp + 30);
-
-    expect(updatedState.completedQuizzes, initialState.completedQuizzes + 1);
+    expect(errorMessage, isNull);
 
     expect(
-      updatedState.totalCorrectAnswers,
-      initialState.totalCorrectAnswers + 1,
+      container.read(userProgressControllerProvider).displayName,
+      'Welljoel Walter',
     );
 
-    expect(
-      updatedState.totalQuizQuestions,
-      initialState.totalQuizQuestions + 2,
-    );
-
-    expect(updatedWeeklyActivityTotal, initialWeeklyActivityTotal + 2);
-
-    expect(repository.storedProgress?.totalXp, updatedState.totalXp);
+    expect(repository.progress.displayName, 'Welljoel Walter');
 
     expect(repository.saveCallCount, 1);
   });
 
-  test('menyimpan dan memuatkan semula nama paparan', () async {
-    final repository = _FakeUserProgressRepository();
+  test('server result mengambil semula nilai server tanpa double XP', () async {
+    final repository = _FakeUserProgressRepository(progress: _createProgress());
 
-    final firstContainer = ProviderContainer(
+    final container = ProviderContainer(
       overrides: [userProgressRepositoryProvider.overrideWithValue(repository)],
     );
 
-    final firstController = firstContainer.read(
-      userProgressControllerProvider.notifier,
+    addTearDown(container.dispose);
+
+    final controller = container.read(userProgressControllerProvider.notifier);
+
+    await controller.initialize();
+
+    repository.progress = repository.progress.copyWith(
+      totalXp: 1900,
+      weeklyXp: 1900,
+      completedQuizzes: 9,
     );
 
-    await firstController.initialize();
-
-    final errorMessage = await firstController.updateDisplayName(
-      'Welljoel Walter',
+    await controller.recordServerQuizResult(
+      result: _createResult(),
+      earnedXp: 80,
     );
 
-    expect(errorMessage, isNull);
-    expect(repository.storedProgress?.displayName, 'Welljoel Walter');
+    final state = container.read(userProgressControllerProvider);
 
-    firstContainer.dispose();
+    expect(state.totalXp, 1900);
 
-    final secondContainer = ProviderContainer(
+    expect(state.completedQuizzes, 9);
+
+    expect(repository.loadCallCount, 2);
+  });
+
+  test('reset progress melalui repository server', () async {
+    final repository = _FakeUserProgressRepository(progress: _createProgress());
+
+    final container = ProviderContainer(
       overrides: [userProgressRepositoryProvider.overrideWithValue(repository)],
     );
 
-    addTearDown(secondContainer.dispose);
+    addTearDown(container.dispose);
 
-    final secondController = secondContainer.read(
-      userProgressControllerProvider.notifier,
-    );
+    final controller = container.read(userProgressControllerProvider.notifier);
 
-    await secondController.initialize();
+    await controller.initialize();
 
-    final restoredState = secondContainer.read(userProgressControllerProvider);
+    await controller.clearLocalProgress();
 
-    expect(restoredState.displayName, 'Welljoel Walter');
+    final state = container.read(userProgressControllerProvider);
+
+    expect(repository.clearCallCount, 1);
+
+    expect(state.totalXp, 0);
+
+    expect(state.completedQuizzes, 0);
   });
 }

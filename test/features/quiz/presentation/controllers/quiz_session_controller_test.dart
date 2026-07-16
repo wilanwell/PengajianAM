@@ -17,6 +17,10 @@ import 'package:pengajian_am_stpm_objektif/features/quiz/presentation/controller
 import 'package:pengajian_am_stpm_objektif/features/quiz/presentation/controllers/quiz_session_state.dart';
 
 class _FakeQuizRepository implements QuizRepository {
+  _FakeQuizRepository({required this.onServerSubmit});
+
+  final void Function() onServerSubmit;
+
   Map<String, int>? submittedAnswers;
 
   @override
@@ -31,20 +35,17 @@ class _FakeQuizRepository implements QuizRepository {
       mode: mode,
       questionCount: 2,
       expiresAt: DateTime(2026, 7, 16, 12),
-
-      // Jangan gunakan const pada senarai ini kerana
-      // QuizSessionQuestion memeriksa options.length.
       questions: [
         QuizSessionQuestion(
           id: 'q1',
-          topicId: 'topic-s1-02',
+          topicId: topicId,
           questionText: 'Soalan satu',
           options: const ['Betul', 'Salah'],
           questionOrder: 1,
         ),
         QuizSessionQuestion(
           id: 'q2',
-          topicId: 'topic-s1-02',
+          topicId: topicId,
           questionText: 'Soalan dua',
           options: const ['Salah', 'Betul'],
           questionOrder: 2,
@@ -61,6 +62,12 @@ class _FakeQuizRepository implements QuizRepository {
     required bool autoSubmitted,
   }) async {
     submittedAnswers = Map<String, int>.from(selectedAnswers);
+
+    // Dalam aplikasi sebenar, RPC Supabase
+    // mengemas kini public.user_progress.
+    // Dalam unit test, callback ini mewakili
+    // perubahan progress tersebut.
+    onServerSubmit();
 
     final result = QuizResult(
       topicId: 'topic-s1-02',
@@ -90,6 +97,7 @@ class _FakeQuizRepository implements QuizRepository {
       selectedAnswers: Map<String, int>.unmodifiable(selectedAnswers),
       correctAnswers: 1,
       answeredQuestions: selectedAnswers.length,
+      earnedXp: 30,
       elapsedTime: elapsedTime,
       autoSubmitted: autoSubmitted,
     );
@@ -104,26 +112,38 @@ class _FakeQuizRepository implements QuizRepository {
 }
 
 class _FakeUserProgressRepository implements UserProgressRepository {
+  _FakeUserProgressRepository({required this.storedProgress});
+
   UserProgress? storedProgress;
+
+  int loadCallCount = 0;
+  int saveCallCount = 0;
+  int clearCallCount = 0;
 
   @override
   Future<UserProgress?> loadProgress() async {
+    loadCallCount++;
+
     return storedProgress;
   }
 
   @override
   Future<void> saveProgress(UserProgress progress) async {
     storedProgress = progress;
+    saveCallCount++;
   }
 
   @override
   Future<void> clearProgress() async {
     storedProgress = null;
+    clearCallCount++;
   }
 }
 
 class _FakeQuizHistoryRepository implements QuizHistoryRepository {
   List<QuizAttempt> attempts = [];
+
+  int saveCallCount = 0;
 
   @override
   Future<List<QuizAttempt>> loadAttempts() async {
@@ -133,6 +153,8 @@ class _FakeQuizHistoryRepository implements QuizHistoryRepository {
   @override
   Future<void> saveAttempts(List<QuizAttempt> attempts) async {
     this.attempts = List<QuizAttempt>.from(attempts);
+
+    saveCallCount++;
   }
 
   @override
@@ -141,13 +163,84 @@ class _FakeQuizHistoryRepository implements QuizHistoryRepository {
   }
 }
 
+UserProgress _createProgressBeforeQuiz() {
+  return UserProgress(
+    userId: 'current-user',
+    displayName: 'PelajarPA',
+    email: 'student@example.com',
+    semesterLabel: 'Semester 1',
+    joinedAt: DateTime(2026, 1, 10),
+    totalXp: 1820,
+    weeklyXp: 1820,
+    monthlyXp: 6540,
+    completedQuizzes: 8,
+    totalCorrectAnswers: 122,
+    totalQuizQuestions: 160,
+    highestScore: 82,
+    completedTopics: 3,
+    totalTopics: 7,
+    currentStreakDays: 4,
+    bestStreakDays: 9,
+    weeklyAnsweredQuestions: List<int>.unmodifiable([
+      12,
+      18,
+      8,
+      24,
+      20,
+      30,
+      16,
+    ]),
+  );
+}
+
+UserProgress _createProgressAfterQuiz() {
+  return UserProgress(
+    userId: 'current-user',
+    displayName: 'PelajarPA',
+    email: 'student@example.com',
+    semesterLabel: 'Semester 1',
+    joinedAt: DateTime(2026, 1, 10),
+
+    // Nilai progress selepas server
+    // menyimpan keputusan kuiz.
+    totalXp: 1850,
+    weeklyXp: 1850,
+    monthlyXp: 6570,
+    completedQuizzes: 9,
+    totalCorrectAnswers: 123,
+    totalQuizQuestions: 162,
+    highestScore: 82,
+    completedTopics: 3,
+    totalTopics: 7,
+    currentStreakDays: 4,
+    bestStreakDays: 9,
+    weeklyAnsweredQuestions: List<int>.unmodifiable([
+      12,
+      18,
+      8,
+      24,
+      20,
+      32,
+      16,
+    ]),
+  );
+}
+
 void main() {
   test('memulakan, menghantar dan menyimpan kuiz server', () async {
-    final quizRepository = _FakeQuizRepository();
-
-    final progressRepository = _FakeUserProgressRepository();
+    final progressRepository = _FakeUserProgressRepository(
+      storedProgress: _createProgressBeforeQuiz(),
+    );
 
     final historyRepository = _FakeQuizHistoryRepository();
+
+    final quizRepository = _FakeQuizRepository(
+      onServerSubmit: () {
+        // Dalam aplikasi sebenar, perubahan ini
+        // dilakukan oleh RPC Supabase.
+        progressRepository.storedProgress = _createProgressAfterQuiz();
+      },
+    );
 
     final container = ProviderContainer(
       overrides: [
@@ -177,7 +270,7 @@ void main() {
 
     expect(state.currentQuestion?.id, 'q1');
 
-    // Jawab soalan pertama dengan jawapan betul.
+    // Jawab soalan pertama dengan betul.
     controller.selectAnswer(0);
 
     controller.nextQuestion();
@@ -186,7 +279,7 @@ void main() {
 
     expect(state.currentQuestion?.id, 'q2');
 
-    // Jawab soalan kedua dengan jawapan salah.
+    // Jawab soalan kedua dengan salah.
     controller.selectAnswer(0);
 
     await controller.submitQuiz();
@@ -203,22 +296,45 @@ void main() {
 
     expect(state.result!.totalQuestions, 2);
 
+    expect(state.result!.earnedXp, 30);
+
     expect(quizRepository.submittedAnswers, {'q1': 0, 'q2': 0});
+
+    // UserProgressController mengambil semula
+    // progress terbaru daripada repository.
+    final refreshedProgress = container.read(userProgressControllerProvider);
 
     expect(progressRepository.storedProgress, isNotNull);
 
-    // Nilai awal ialah 1820 XP dan server memberikan 30 XP.
-    expect(progressRepository.storedProgress!.totalXp, 1850);
+    expect(refreshedProgress.totalXp, 1850);
 
+    expect(refreshedProgress.weeklyXp, 1850);
+
+    expect(refreshedProgress.monthlyXp, 6570);
+
+    expect(refreshedProgress.completedQuizzes, 9);
+
+    expect(refreshedProgress.totalCorrectAnswers, 123);
+
+    expect(refreshedProgress.totalQuizQuestions, 162);
+
+    expect(progressRepository.loadCallCount, 1);
+
+    // Attempt disimpan dalam cache sejarah tempatan.
     expect(historyRepository.attempts, hasLength(1));
 
-    expect(
-      historyRepository.attempts.first.id,
-      '00000000-0000-0000-0000-000000000002',
-    );
+    final storedAttempt = historyRepository.attempts.first;
 
-    expect(historyRepository.attempts.first.earnedXp, 30);
+    expect(storedAttempt.id, '00000000-0000-0000-0000-000000000002');
 
-    expect(historyRepository.attempts.first.result.correctAnswers, 1);
+    expect(storedAttempt.earnedXp, 30);
+
+    expect(storedAttempt.result.correctAnswers, 1);
+
+    expect(storedAttempt.result.answeredQuestions, 2);
+
+    expect(storedAttempt.result.earnedXp, 30);
+
+    expect(historyRepository.saveCallCount, 1);
   });
 }

@@ -7,6 +7,7 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../authentication/presentation/controllers/auth_session_controller.dart';
 import '../../../authentication/presentation/controllers/login_controller.dart';
+import '../../../progress/domain/entities/user_progress.dart';
 import '../../../progress/presentation/controllers/user_progress_controller.dart';
 import '../../../quiz/presentation/controllers/quiz_history_controller.dart';
 import '../../domain/entities/home_summary.dart';
@@ -43,20 +44,41 @@ class _HomePageState extends ConsumerState<HomePage> {
       return;
     }
 
-    _isLoggingOut = true;
+    setState(() {
+      _isLoggingOut = true;
+    });
 
-    await ref.read(authSessionControllerProvider.notifier).signOut();
+    try {
+      await ref.read(authSessionControllerProvider.notifier).signOut();
 
-    if (!mounted) {
-      return;
+      if (!mounted) {
+        return;
+      }
+
+      ref.read(loginControllerProvider.notifier).reset();
+
+      ref.read(homeControllerProvider.notifier).reset();
+
+      ref.read(userProgressControllerProvider.notifier).resetState();
+
+      ref.read(quizHistoryControllerProvider.notifier).reset();
+
+      context.goNamed(RouteNames.login);
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isLoggingOut = false;
+      });
+
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('Log keluar tidak dapat diselesaikan.')),
+        );
     }
-
-    ref.read(loginControllerProvider.notifier).reset();
-    ref.read(homeControllerProvider.notifier).reset();
-
-    ref.read(quizHistoryControllerProvider.notifier).reset();
-
-    context.goNamed(RouteNames.login);
   }
 
   void _retryLoadingDashboard() {
@@ -65,10 +87,21 @@ class _HomePageState extends ConsumerState<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    ref.listen(userProgressControllerProvider, (previous, next) {
-      ref
-          .read(homeControllerProvider.notifier)
-          .loadDashboard(forceRefresh: true);
+    ref.listen<UserProgress>(userProgressControllerProvider, (previous, next) {
+      if (_isLoggingOut) {
+        return;
+      }
+
+      final currentHomeState = ref.read(homeControllerProvider);
+
+      if (currentHomeState.status == HomeStatus.loading) {
+        return;
+      }
+
+      final controller = ref.read(homeControllerProvider.notifier);
+
+      controller.reset();
+      controller.loadDashboard();
     });
 
     final homeState = ref.watch(homeControllerProvider);

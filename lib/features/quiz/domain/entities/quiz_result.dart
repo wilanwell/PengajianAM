@@ -13,27 +13,36 @@ class QuizResult {
     required this.autoSubmitted,
     this.topicCode = '',
     this.topicTitle = 'Topik Pengajian AM',
-  });
+    this.earnedXp = 0,
+  }) : assert(earnedXp >= 0);
 
   final String topicId;
   final String topicCode;
   final String topicTitle;
+
   final QuizMode mode;
   final List<QuizQuestion> questions;
   final Map<String, int> selectedAnswers;
+
   final int correctAnswers;
   final int answeredQuestions;
+  final int earnedXp;
+
   final Duration elapsedTime;
   final bool autoSubmitted;
 
-  int get totalQuestions => questions.length;
+  int get totalQuestions {
+    return questions.length;
+  }
 
   int get incorrectAnswers {
     return answeredQuestions - correctAnswers;
   }
 
   int get unansweredQuestions {
-    return totalQuestions - answeredQuestions;
+    final count = totalQuestions - answeredQuestions;
+
+    return count < 0 ? 0 : count;
   }
 
   double get percentage {
@@ -44,7 +53,9 @@ class QuizResult {
     return correctAnswers / totalQuestions * 100;
   }
 
-  bool get passed => percentage >= 50;
+  bool get passed {
+    return percentage >= 50;
+  }
 
   Map<String, Object?> toJson() {
     return {
@@ -56,6 +67,7 @@ class QuizResult {
       'selectedAnswers': selectedAnswers,
       'correctAnswers': correctAnswers,
       'answeredQuestions': answeredQuestions,
+      'earnedXp': earnedXp,
       'elapsedTimeMilliseconds': elapsedTime.inMilliseconds,
       'autoSubmitted': autoSubmitted,
     };
@@ -114,6 +126,7 @@ class QuizResult {
       selectedAnswers: Map<String, int>.unmodifiable(selectedAnswers),
       correctAnswers: _readInt(json, 'correctAnswers'),
       answeredQuestions: _readInt(json, 'answeredQuestions'),
+      earnedXp: _readOptionalInt(json, 'earnedXp'),
       elapsedTime: Duration(
         milliseconds: _readInt(json, 'elapsedTimeMilliseconds'),
       ),
@@ -129,7 +142,7 @@ String _readString(Map<String, dynamic> json, String key) {
     throw FormatException('Invalid String value for $key.');
   }
 
-  return value;
+  return value.trim();
 }
 
 String _readOptionalString(
@@ -147,7 +160,7 @@ String _readOptionalString(
     throw FormatException('Invalid optional String value for $key.');
   }
 
-  return value.trim().isEmpty ? fallback : value;
+  return value.trim().isEmpty ? fallback : value.trim();
 }
 
 int _readInt(Map<String, dynamic> json, String key) {
@@ -158,6 +171,26 @@ int _readInt(Map<String, dynamic> json, String key) {
   }
 
   return value.toInt();
+}
+
+int _readOptionalInt(
+  Map<String, dynamic> json,
+  String key, {
+  int fallback = 0,
+}) {
+  final value = json[key];
+
+  if (value == null) {
+    return fallback;
+  }
+
+  if (value is! num) {
+    throw FormatException('Invalid optional integer value for $key.');
+  }
+
+  final result = value.toInt();
+
+  return result < 0 ? fallback : result;
 }
 
 bool _readBool(Map<String, dynamic> json, String key) {
