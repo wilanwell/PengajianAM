@@ -41,8 +41,9 @@ class _QuizHistoryPageState extends ConsumerState<QuizHistoryPage> {
         return AlertDialog(
           title: const Text('Padam Rekod?'),
           content: const Text(
-            'Keputusan kuiz ini akan dipadamkan '
-            'daripada sejarah kuiz.',
+            'Rekod ini akan dipadamkan daripada '
+            'sejarah dan analitik topik. '
+            'XP keseluruhan anda tidak akan ditolak.',
           ),
           actions: [
             TextButton(
@@ -66,7 +67,7 @@ class _QuizHistoryPageState extends ConsumerState<QuizHistoryPage> {
       return;
     }
 
-    await ref
+    final deleted = await ref
         .read(quizHistoryControllerProvider.notifier)
         .deleteAttempt(attempt.id);
 
@@ -74,10 +75,18 @@ class _QuizHistoryPageState extends ConsumerState<QuizHistoryPage> {
       return;
     }
 
+    final state = ref.read(quizHistoryControllerProvider);
+
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        const SnackBar(content: Text('Rekod kuiz telah dipadamkan.')),
+        SnackBar(
+          content: Text(
+            deleted
+                ? 'Rekod kuiz telah dipadamkan.'
+                : state.errorMessage ?? 'Rekod kuiz tidak dapat dipadamkan.',
+          ),
+        ),
       );
   }
 
@@ -88,8 +97,10 @@ class _QuizHistoryPageState extends ConsumerState<QuizHistoryPage> {
         return AlertDialog(
           title: const Text('Padam Semua Sejarah?'),
           content: const Text(
-            'Semua keputusan kuiz terdahulu akan '
-            'dipadamkan secara kekal.',
+            'Semua keputusan kuiz dan analitik '
+            'mengikut topik akan dipadamkan. '
+            'XP dan progress keseluruhan tidak '
+            'akan dikurangkan.',
           ),
           actions: [
             TextButton(
@@ -113,7 +124,27 @@ class _QuizHistoryPageState extends ConsumerState<QuizHistoryPage> {
       return;
     }
 
-    await ref.read(quizHistoryControllerProvider.notifier).clearHistory();
+    final cleared = await ref
+        .read(quizHistoryControllerProvider.notifier)
+        .clearHistory();
+
+    if (!mounted) {
+      return;
+    }
+
+    final state = ref.read(quizHistoryControllerProvider);
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            cleared
+                ? 'Semua sejarah kuiz telah dipadamkan.'
+                : state.errorMessage ?? 'Sejarah kuiz tidak dapat dipadamkan.',
+          ),
+        ),
+      );
   }
 
   @override

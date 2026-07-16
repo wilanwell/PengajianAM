@@ -143,7 +143,7 @@ class _AnalyticsSummaryCard extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            'Berdasarkan sejarah kuiz yang telah disimpan.',
+            'Berdasarkan rekod kuiz dalam akaun Supabase anda.',
             textAlign: TextAlign.center,
             style: textTheme.bodyMedium?.copyWith(color: Colors.white70),
           ),

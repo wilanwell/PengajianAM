@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:pengajian_am_stpm_objektif/features/progress/domain/entities/user_progress.dart';
 import 'package:pengajian_am_stpm_objektif/features/progress/domain/repositories/user_progress_repository.dart';
 import 'package:pengajian_am_stpm_objektif/features/progress/presentation/controllers/user_progress_controller.dart';
-import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_attempt.dart';
+import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_history_snapshot.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_mode.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_question.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_result.dart';
@@ -63,10 +63,13 @@ class _FakeQuizRepository implements QuizRepository {
   }) async {
     submittedAnswers = Map<String, int>.from(selectedAnswers);
 
-    // Dalam aplikasi sebenar, RPC Supabase
-    // mengemas kini public.user_progress.
-    // Dalam unit test, callback ini mewakili
-    // perubahan progress tersebut.
+    /*
+     * Dalam aplikasi sebenar, submit_quiz_attempt
+     * mengemas kini public.user_progress di Supabase.
+     *
+     * Callback ini mewakili perubahan tersebut
+     * untuk unit test sahaja.
+     */
     onServerSubmit();
 
     final result = QuizResult(
@@ -141,25 +144,32 @@ class _FakeUserProgressRepository implements UserProgressRepository {
 }
 
 class _FakeQuizHistoryRepository implements QuizHistoryRepository {
-  List<QuizAttempt> attempts = [];
+  int fetchCallCount = 0;
+  int clearCallCount = 0;
 
-  int saveCallCount = 0;
+  final deletedAttemptIds = <String>[];
 
   @override
-  Future<List<QuizAttempt>> loadAttempts() async {
-    return List<QuizAttempt>.unmodifiable(attempts);
+  Future<QuizHistorySnapshot> fetchHistory({int limit = 30}) async {
+    fetchCallCount++;
+
+    return QuizHistorySnapshot(
+      generatedAt: DateTime(2026, 7, 16, 10),
+      totalCount: 0,
+      attempts: const [],
+    );
   }
 
   @override
-  Future<void> saveAttempts(List<QuizAttempt> attempts) async {
-    this.attempts = List<QuizAttempt>.from(attempts);
-
-    saveCallCount++;
+  Future<void> deleteAttempt(String attemptId) async {
+    deletedAttemptIds.add(attemptId);
   }
 
   @override
-  Future<void> clearAttempts() async {
-    attempts = [];
+  Future<int> clearHistory() async {
+    clearCallCount++;
+
+    return 0;
   }
 }
 
@@ -201,11 +211,11 @@ UserProgress _createProgressAfterQuiz() {
     semesterLabel: 'Semester 1',
     joinedAt: DateTime(2026, 1, 10),
 
-    // Nilai progress selepas server
-    // menyimpan keputusan kuiz.
+    // Nilai baharu selepas Supabase menyimpan kuiz.
     totalXp: 1850,
     weeklyXp: 1850,
     monthlyXp: 6570,
+
     completedQuizzes: 9,
     totalCorrectAnswers: 123,
     totalQuizQuestions: 162,
@@ -236,8 +246,10 @@ void main() {
 
     final quizRepository = _FakeQuizRepository(
       onServerSubmit: () {
-        // Dalam aplikasi sebenar, perubahan ini
-        // dilakukan oleh RPC Supabase.
+        /*
+           * Dalam aplikasi sebenar, perubahan ini
+           * dilakukan oleh RPC submit_quiz_attempt.
+           */
         progressRepository.storedProgress = _createProgressAfterQuiz();
       },
     );
@@ -260,48 +272,50 @@ void main() {
       questionCount: 2,
     );
 
-    var state = container.read(quizSessionControllerProvider);
+    var sessionState = container.read(quizSessionControllerProvider);
 
-    expect(state.status, QuizSessionStatus.ready);
+    expect(sessionState.status, QuizSessionStatus.ready);
 
-    expect(state.sessionId, '00000000-0000-0000-0000-000000000001');
+    expect(sessionState.sessionId, '00000000-0000-0000-0000-000000000001');
 
-    expect(state.questions, hasLength(2));
+    expect(sessionState.questions, hasLength(2));
 
-    expect(state.currentQuestion?.id, 'q1');
+    expect(sessionState.currentQuestion?.id, 'q1');
 
     // Jawab soalan pertama dengan betul.
     controller.selectAnswer(0);
 
     controller.nextQuestion();
 
-    state = container.read(quizSessionControllerProvider);
+    sessionState = container.read(quizSessionControllerProvider);
 
-    expect(state.currentQuestion?.id, 'q2');
+    expect(sessionState.currentQuestion?.id, 'q2');
 
     // Jawab soalan kedua dengan salah.
     controller.selectAnswer(0);
 
     await controller.submitQuiz();
 
-    state = container.read(quizSessionControllerProvider);
+    sessionState = container.read(quizSessionControllerProvider);
 
-    expect(state.status, QuizSessionStatus.completed);
+    expect(sessionState.status, QuizSessionStatus.completed);
 
-    expect(state.result, isNotNull);
+    expect(sessionState.result, isNotNull);
 
-    expect(state.result!.correctAnswers, 1);
+    expect(sessionState.result!.correctAnswers, 1);
 
-    expect(state.result!.answeredQuestions, 2);
+    expect(sessionState.result!.answeredQuestions, 2);
 
-    expect(state.result!.totalQuestions, 2);
+    expect(sessionState.result!.totalQuestions, 2);
 
-    expect(state.result!.earnedXp, 30);
+    expect(sessionState.result!.earnedXp, 30);
 
     expect(quizRepository.submittedAnswers, {'q1': 0, 'q2': 0});
 
-    // UserProgressController mengambil semula
-    // progress terbaru daripada repository.
+    /*
+       * Progress UI mengambil semula data terbaru
+       * yang sudah disimpan oleh server.
+       */
     final refreshedProgress = container.read(userProgressControllerProvider);
 
     expect(progressRepository.storedProgress, isNotNull);
@@ -320,21 +334,45 @@ void main() {
 
     expect(progressRepository.loadCallCount, 1);
 
-    // Attempt disimpan dalam cache sejarah tempatan.
-    expect(historyRepository.attempts, hasLength(1));
+    /*
+       * submit_quiz_attempt sudah menyimpan attempt
+       * dalam Supabase.
+       *
+       * QuizHistoryController hanya menambah attempt
+       * tersebut ke state semasa supaya UI dapat
+       * memaparkannya dengan segera.
+       */
+    final historyState = container.read(quizHistoryControllerProvider);
 
-    final storedAttempt = historyRepository.attempts.first;
+    expect(historyState.attempts, hasLength(1));
+
+    expect(historyState.totalAttempts, 1);
+
+    final storedAttempt = historyState.attempts.first;
 
     expect(storedAttempt.id, '00000000-0000-0000-0000-000000000002');
 
     expect(storedAttempt.earnedXp, 30);
 
+    expect(storedAttempt.completedAt, DateTime(2026, 7, 16, 11));
+
     expect(storedAttempt.result.correctAnswers, 1);
 
     expect(storedAttempt.result.answeredQuestions, 2);
 
+    expect(storedAttempt.result.totalQuestions, 2);
+
     expect(storedAttempt.result.earnedXp, 30);
 
-    expect(historyRepository.saveCallCount, 1);
+    /*
+       * Repository history tidak dipanggil untuk
+       * menyimpan attempt sekali lagi kerana attempt
+       * sudah disimpan oleh Supabase quiz RPC.
+       */
+    expect(historyRepository.fetchCallCount, 0);
+
+    expect(historyRepository.deletedAttemptIds, isEmpty);
+
+    expect(historyRepository.clearCallCount, 0);
   });
 }

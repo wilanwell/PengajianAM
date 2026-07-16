@@ -1,9 +1,9 @@
-import '../entities/quiz_attempt.dart';
+import '../entities/quiz_history_snapshot.dart';
 
 abstract interface class QuizHistoryRepository {
-  Future<List<QuizAttempt>> loadAttempts();
+  Future<QuizHistorySnapshot> fetchHistory({int limit = 30});
 
-  Future<void> saveAttempts(List<QuizAttempt> attempts);
+  Future<void> deleteAttempt(String attemptId);
 
-  Future<void> clearAttempts();
+  Future<int> clearHistory();
 }
