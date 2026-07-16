@@ -8,6 +8,7 @@ class LeaderboardState {
     this.status = LeaderboardStatus.initial,
     this.period = LeaderboardPeriod.weekly,
     this.entries = const [],
+    this.participantCount = 0,
     this.lastUpdated,
     this.errorMessage,
   });
@@ -15,10 +16,13 @@ class LeaderboardState {
   final LeaderboardStatus status;
   final LeaderboardPeriod period;
   final List<LeaderboardEntry> entries;
+  final int participantCount;
   final DateTime? lastUpdated;
   final String? errorMessage;
 
-  bool get isLoading => status == LeaderboardStatus.loading;
+  bool get isLoading {
+    return status == LeaderboardStatus.loading;
+  }
 
   LeaderboardEntry? get currentUserEntry {
     for (final entry in entries) {
@@ -32,14 +36,18 @@ class LeaderboardState {
 
   List<LeaderboardEntry> get topThree {
     final sortedEntries = [...entries]
-      ..sort((first, second) => first.rank.compareTo(second.rank));
+      ..sort((first, second) {
+        return first.rank.compareTo(second.rank);
+      });
 
     return List<LeaderboardEntry>.unmodifiable(sortedEntries.take(3));
   }
 
   List<LeaderboardEntry> get remainingEntries {
     final sortedEntries = [...entries]
-      ..sort((first, second) => first.rank.compareTo(second.rank));
+      ..sort((first, second) {
+        return first.rank.compareTo(second.rank);
+      });
 
     return List<LeaderboardEntry>.unmodifiable(sortedEntries.skip(3));
   }
@@ -48,6 +56,7 @@ class LeaderboardState {
     LeaderboardStatus? status,
     LeaderboardPeriod? period,
     List<LeaderboardEntry>? entries,
+    int? participantCount,
     DateTime? lastUpdated,
     String? errorMessage,
     bool clearLastUpdated = false,
@@ -57,6 +66,7 @@ class LeaderboardState {
       status: status ?? this.status,
       period: period ?? this.period,
       entries: entries ?? this.entries,
+      participantCount: participantCount ?? this.participantCount,
       lastUpdated: clearLastUpdated ? null : lastUpdated ?? this.lastUpdated,
       errorMessage: clearErrorMessage
           ? null

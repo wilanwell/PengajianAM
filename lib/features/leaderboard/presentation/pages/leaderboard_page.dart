@@ -126,6 +126,14 @@ class _LeaderboardContent extends StatelessWidget {
               color: AppColors.secondaryText,
             ),
           ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            '${state.participantCount} peserta aktif',
+            textAlign: TextAlign.center,
+            style: textTheme.bodySmall?.copyWith(
+              color: AppColors.secondaryText,
+            ),
+          ),
           const SizedBox(height: AppSpacing.lg),
           if (currentUser != null) _CurrentUserSummaryCard(entry: currentUser),
           const SizedBox(height: AppSpacing.lg),
