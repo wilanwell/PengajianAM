@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pengajian_am_stpm_objektif/features/authentication/domain/entities/auth_registration_result.dart';
 import 'package:pengajian_am_stpm_objektif/features/authentication/domain/entities/auth_session.dart';
 import 'package:pengajian_am_stpm_objektif/features/authentication/domain/repositories/auth_session_repository.dart';
 import 'package:pengajian_am_stpm_objektif/features/authentication/presentation/controllers/auth_session_controller.dart';
@@ -7,96 +8,72 @@ import 'package:pengajian_am_stpm_objektif/features/authentication/presentation/
 
 class _FakeAuthSessionRepository implements AuthSessionRepository {
   AuthSession? storedSession;
-  int saveCallCount = 0;
-  int clearCallCount = 0;
+  bool requireEmailConfirmation = false;
 
   @override
-  Future<AuthSession?> loadSession() async {
+  AuthSession? get currentSession {
     return storedSession;
   }
 
   @override
-  Future<void> saveSession(AuthSession session) async {
-    storedSession = session;
-    saveCallCount++;
+  Stream<AuthSession?> get authStateChanges {
+    return const Stream<AuthSession?>.empty();
   }
 
   @override
-  Future<void> clearSession() async {
+  Future<AuthSession> signInWithPassword({
+    required String email,
+    required String password,
+  }) async {
+    final session = AuthSession(
+      isAuthenticated: true,
+      userId: 'user-123',
+      email: email,
+      signedInAt: DateTime(2026, 7, 16),
+    );
+
+    storedSession = session;
+
+    return session;
+  }
+
+  @override
+  Future<AuthRegistrationResult> signUp({
+    required String displayName,
+    required String email,
+    required String password,
+  }) async {
+    final session = requireEmailConfirmation
+        ? null
+        : AuthSession(
+            isAuthenticated: true,
+            userId: 'user-456',
+            email: email,
+            signedInAt: DateTime(2026, 7, 16),
+          );
+
+    storedSession = session;
+
+    return AuthRegistrationResult(
+      userId: 'user-456',
+      email: email,
+      session: session,
+    );
+  }
+
+  @override
+  Future<void> signOut() async {
     storedSession = null;
-    clearCallCount++;
   }
 }
 
 void main() {
-  test('menyimpan dan memuatkan sesi log masuk', () async {
-    final repository = _FakeAuthSessionRepository();
-
-    final firstContainer = ProviderContainer(
-      overrides: [authSessionRepositoryProvider.overrideWithValue(repository)],
-    );
-
-    final firstController = firstContainer.read(
-      authSessionControllerProvider.notifier,
-    );
-
-    await firstController.signIn();
-
-    var state = firstContainer.read(authSessionControllerProvider);
-
-    expect(state.status, AuthSessionStatus.authenticated);
-
-    expect(state.isAuthenticated, isTrue);
-
-    expect(repository.storedSession, isNotNull);
-
-    expect(repository.saveCallCount, 1);
-
-    firstContainer.dispose();
-
-    final secondContainer = ProviderContainer(
-      overrides: [authSessionRepositoryProvider.overrideWithValue(repository)],
-    );
-
-    addTearDown(secondContainer.dispose);
-
-    final secondController = secondContainer.read(
-      authSessionControllerProvider.notifier,
-    );
-
-    await secondController.loadSession();
-
-    state = secondContainer.read(authSessionControllerProvider);
-
-    expect(state.status, AuthSessionStatus.authenticated);
-
-    expect(state.isAuthenticated, isTrue);
-  });
-
-  test('mengembalikan status unauthenticated jika sesi tiada', () async {
-    final repository = _FakeAuthSessionRepository();
-
-    final container = ProviderContainer(
-      overrides: [authSessionRepositoryProvider.overrideWithValue(repository)],
-    );
-
-    addTearDown(container.dispose);
-
-    final controller = container.read(authSessionControllerProvider.notifier);
-
-    await controller.loadSession();
-
-    final state = container.read(authSessionControllerProvider);
-
-    expect(state.status, AuthSessionStatus.unauthenticated);
-
-    expect(state.isAuthenticated, isFalse);
-  });
-
-  test('memadam sesi apabila pengguna log keluar', () async {
+  test('memuatkan sesi Supabase yang aktif', () async {
     final repository = _FakeAuthSessionRepository()
       ..storedSession = AuthSession(
         isAuthenticated: true,
+        userId: 'user-123',
+        email: 'student@example.com',
         signedInAt: DateTime(2026, 7, 16),
       );
 
@@ -110,9 +87,76 @@ void main() {
 
     await controller.loadSession();
 
+    final state = container.read(authSessionControllerProvider);
+
+    expect(state.status, AuthSessionStatus.authenticated);
+
+    expect(state.isAuthenticated, isTrue);
+    expect(state.session.userId, 'user-123');
+  });
+
+  test('log masuk menggunakan e-mel dan kata laluan', () async {
+    final repository = _FakeAuthSessionRepository();
+
+    final container = ProviderContainer(
+      overrides: [authSessionRepositoryProvider.overrideWithValue(repository)],
+    );
+
+    addTearDown(container.dispose);
+
+    final controller = container.read(authSessionControllerProvider.notifier);
+
+    await controller.signInWithPassword(
+      email: 'student@example.com',
+      password: 'password123',
+    );
+
+    final state = container.read(authSessionControllerProvider);
+
+    expect(state.isAuthenticated, isTrue);
+    expect(state.session.email, 'student@example.com');
+  });
+
+  test('pendaftaran boleh memerlukan pengesahan e-mel', () async {
+    final repository = _FakeAuthSessionRepository()
+      ..requireEmailConfirmation = true;
+
+    final container = ProviderContainer(
+      overrides: [authSessionRepositoryProvider.overrideWithValue(repository)],
+    );
+
+    addTearDown(container.dispose);
+
+    final controller = container.read(authSessionControllerProvider.notifier);
+
+    final result = await controller.signUp(
+      displayName: 'Pelajar Ujian',
+      email: 'new@example.com',
+      password: 'password123',
+    );
+
+    expect(result.requiresEmailConfirmation, isTrue);
+
     expect(
-      container.read(authSessionControllerProvider).isAuthenticated,
-      isTrue,
+      container.read(authSessionControllerProvider).status,
+      AuthSessionStatus.unauthenticated,
+    );
+  });
+
+  test('log keluar memadam sesi semasa', () async {
+    final repository = _FakeAuthSessionRepository();
+
+    final container = ProviderContainer(
+      overrides: [authSessionRepositoryProvider.overrideWithValue(repository)],
+    );
+
+    addTearDown(container.dispose);
+
+    final controller = container.read(authSessionControllerProvider.notifier);
+
+    await controller.signInWithPassword(
+      email: 'student@example.com',
+      password: 'password123',
     );
 
     await controller.signOut();
@@ -121,10 +165,6 @@ void main() {
 
     expect(state.status, AuthSessionStatus.unauthenticated);
 
-    expect(state.isAuthenticated, isFalse);
-
     expect(repository.storedSession, isNull);
-
-    expect(repository.clearCallCount, 1);
   });
 }

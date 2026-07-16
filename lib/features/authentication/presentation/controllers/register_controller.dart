@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../domain/validators/auth_validators.dart';
+import '../../domain/exceptions/authentication_failure.dart';
+import 'auth_session_controller.dart';
 import 'register_state.dart';
 
 final registerControllerProvider =
@@ -16,6 +17,7 @@ class RegisterController extends Notifier<RegisterState> {
     state = state.copyWith(
       name: value,
       status: RegisterStatus.initial,
+      requiresEmailConfirmation: false,
       clearErrorMessage: true,
     );
   }
@@ -24,6 +26,7 @@ class RegisterController extends Notifier<RegisterState> {
     state = state.copyWith(
       email: value,
       status: RegisterStatus.initial,
+      requiresEmailConfirmation: false,
       clearErrorMessage: true,
     );
   }
@@ -32,6 +35,7 @@ class RegisterController extends Notifier<RegisterState> {
     state = state.copyWith(
       password: value,
       status: RegisterStatus.initial,
+      requiresEmailConfirmation: false,
       clearErrorMessage: true,
     );
   }
@@ -40,6 +44,7 @@ class RegisterController extends Notifier<RegisterState> {
     state = state.copyWith(
       confirmPassword: value,
       status: RegisterStatus.initial,
+      requiresEmailConfirmation: false,
       clearErrorMessage: true,
     );
   }
@@ -55,38 +60,41 @@ class RegisterController extends Notifier<RegisterState> {
   }
 
   Future<void> register() async {
-    final nameError = AuthValidators.name(state.name);
-    final emailError = AuthValidators.email(state.email);
-    final passwordError = AuthValidators.password(state.password);
-    final confirmPasswordError = AuthValidators.confirmPassword(
-      state.confirmPassword,
-      state.password,
-    );
-
-    if (nameError != null ||
-        emailError != null ||
-        passwordError != null ||
-        confirmPasswordError != null) {
-      state = state.copyWith(
-        status: RegisterStatus.failure,
-        errorMessage: 'Sila semak semula maklumat pendaftaran anda.',
-      );
+    if (state.isLoading) {
       return;
     }
 
     state = state.copyWith(
       status: RegisterStatus.loading,
+      requiresEmailConfirmation: false,
       clearErrorMessage: true,
     );
 
-    // Temporary mock registration.
-    // This will later be replaced by AuthRepository and Supabase.
-    await Future<void>.delayed(const Duration(milliseconds: 700));
+    try {
+      final result = await ref
+          .read(authSessionControllerProvider.notifier)
+          .signUp(
+            displayName: state.name.trim(),
+            email: state.email.trim(),
+            password: state.password,
+          );
 
-    state = state.copyWith(
-      status: RegisterStatus.success,
-      clearErrorMessage: true,
-    );
+      state = state.copyWith(
+        status: RegisterStatus.success,
+        requiresEmailConfirmation: result.requiresEmailConfirmation,
+        clearErrorMessage: true,
+      );
+    } on AuthenticationFailure catch (error) {
+      state = state.copyWith(
+        status: RegisterStatus.failure,
+        errorMessage: error.message,
+      );
+    } catch (_) {
+      state = state.copyWith(
+        status: RegisterStatus.failure,
+        errorMessage: 'Pendaftaran tidak dapat diselesaikan.',
+      );
+    }
   }
 
   void reset() {

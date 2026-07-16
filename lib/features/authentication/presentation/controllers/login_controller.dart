@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../domain/validators/auth_validators.dart';
+import '../../domain/exceptions/authentication_failure.dart';
+import 'auth_session_controller.dart';
 import 'login_state.dart';
 
 final loginControllerProvider = NotifierProvider<LoginController, LoginState>(
@@ -34,14 +35,7 @@ class LoginController extends Notifier<LoginState> {
   }
 
   Future<void> login() async {
-    final emailError = AuthValidators.email(state.email);
-    final passwordError = AuthValidators.password(state.password);
-
-    if (emailError != null || passwordError != null) {
-      state = state.copyWith(
-        status: LoginStatus.failure,
-        errorMessage: 'Sila semak semula maklumat log masuk anda.',
-      );
+    if (state.isLoading) {
       return;
     }
 
@@ -50,14 +44,29 @@ class LoginController extends Notifier<LoginState> {
       clearErrorMessage: true,
     );
 
-    // Temporary mock authentication.
-    // This will later be replaced by AuthRepository and Supabase.
-    await Future<void>.delayed(const Duration(milliseconds: 600));
+    try {
+      await ref
+          .read(authSessionControllerProvider.notifier)
+          .signInWithPassword(
+            email: state.email.trim(),
+            password: state.password,
+          );
 
-    state = state.copyWith(
-      status: LoginStatus.success,
-      clearErrorMessage: true,
-    );
+      state = state.copyWith(
+        status: LoginStatus.success,
+        clearErrorMessage: true,
+      );
+    } on AuthenticationFailure catch (error) {
+      state = state.copyWith(
+        status: LoginStatus.failure,
+        errorMessage: error.message,
+      );
+    } catch (_) {
+      state = state.copyWith(
+        status: LoginStatus.failure,
+        errorMessage: 'Log masuk tidak dapat diselesaikan.',
+      );
+    }
   }
 
   void reset() {

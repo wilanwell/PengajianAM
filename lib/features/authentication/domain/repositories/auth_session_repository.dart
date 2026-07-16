@@ -1,9 +1,21 @@
+import '../entities/auth_registration_result.dart';
 import '../entities/auth_session.dart';
 
 abstract interface class AuthSessionRepository {
-  Future<AuthSession?> loadSession();
+  AuthSession? get currentSession;
 
-  Future<void> saveSession(AuthSession session);
+  Stream<AuthSession?> get authStateChanges;
 
-  Future<void> clearSession();
+  Future<AuthSession> signInWithPassword({
+    required String email,
+    required String password,
+  });
+
+  Future<AuthRegistrationResult> signUp({
+    required String displayName,
+    required String email,
+    required String password,
+  });
+
+  Future<void> signOut();
 }

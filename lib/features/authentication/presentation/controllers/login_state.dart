@@ -15,7 +15,9 @@ class LoginState {
   final LoginStatus status;
   final String? errorMessage;
 
-  bool get isLoading => status == LoginStatus.loading;
+  bool get isLoading {
+    return status == LoginStatus.loading;
+  }
 
   LoginState copyWith({
     String? email,

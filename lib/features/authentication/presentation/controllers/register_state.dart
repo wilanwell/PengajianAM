@@ -8,6 +8,7 @@ class RegisterState {
     this.confirmPassword = '',
     this.isPasswordVisible = false,
     this.isConfirmPasswordVisible = false,
+    this.requiresEmailConfirmation = false,
     this.status = RegisterStatus.initial,
     this.errorMessage,
   });
@@ -18,10 +19,13 @@ class RegisterState {
   final String confirmPassword;
   final bool isPasswordVisible;
   final bool isConfirmPasswordVisible;
+  final bool requiresEmailConfirmation;
   final RegisterStatus status;
   final String? errorMessage;
 
-  bool get isLoading => status == RegisterStatus.loading;
+  bool get isLoading {
+    return status == RegisterStatus.loading;
+  }
 
   RegisterState copyWith({
     String? name,
@@ -30,6 +34,7 @@ class RegisterState {
     String? confirmPassword,
     bool? isPasswordVisible,
     bool? isConfirmPasswordVisible,
+    bool? requiresEmailConfirmation,
     RegisterStatus? status,
     String? errorMessage,
     bool clearErrorMessage = false,
@@ -42,6 +47,8 @@ class RegisterState {
       isPasswordVisible: isPasswordVisible ?? this.isPasswordVisible,
       isConfirmPasswordVisible:
           isConfirmPasswordVisible ?? this.isConfirmPasswordVisible,
+      requiresEmailConfirmation:
+          requiresEmailConfirmation ?? this.requiresEmailConfirmation,
       status: status ?? this.status,
       errorMessage: clearErrorMessage
           ? null

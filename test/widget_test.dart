@@ -5,22 +5,62 @@ import 'package:pengajian_am_stpm_objektif/app/app.dart';
 import 'package:pengajian_am_stpm_objektif/features/authentication/domain/entities/auth_session.dart';
 import 'package:pengajian_am_stpm_objektif/features/authentication/domain/repositories/auth_session_repository.dart';
 import 'package:pengajian_am_stpm_objektif/features/authentication/presentation/controllers/auth_session_controller.dart';
+import 'package:pengajian_am_stpm_objektif/features/authentication/domain/entities/auth_registration_result.dart';
 
 class _FakeAuthSessionRepository implements AuthSessionRepository {
   AuthSession? storedSession;
 
   @override
-  Future<AuthSession?> loadSession() async {
+  AuthSession? get currentSession {
     return storedSession;
   }
 
   @override
-  Future<void> saveSession(AuthSession session) async {
-    storedSession = session;
+  Stream<AuthSession?> get authStateChanges {
+    return const Stream<AuthSession?>.empty();
   }
 
   @override
-  Future<void> clearSession() async {
+  Future<AuthSession> signInWithPassword({
+    required String email,
+    required String password,
+  }) async {
+    final session = AuthSession(
+      isAuthenticated: true,
+      userId: 'widget-user',
+      email: email,
+      signedInAt: DateTime(2026, 7, 16),
+    );
+
+    storedSession = session;
+
+    return session;
+  }
+
+  @override
+  Future<AuthRegistrationResult> signUp({
+    required String displayName,
+    required String email,
+    required String password,
+  }) async {
+    final session = AuthSession(
+      isAuthenticated: true,
+      userId: 'widget-user',
+      email: email,
+      signedInAt: DateTime(2026, 7, 16),
+    );
+
+    storedSession = session;
+
+    return AuthRegistrationResult(
+      userId: session.userId!,
+      email: email,
+      session: session,
+    );
+  }
+
+  @override
+  Future<void> signOut() async {
     storedSession = null;
   }
 }

@@ -10,7 +10,6 @@ import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../core/widgets/app_text_field.dart';
 import '../../domain/validators/auth_validators.dart';
-import '../controllers/auth_session_controller.dart';
 import '../controllers/register_controller.dart';
 import '../controllers/register_state.dart';
 
@@ -40,7 +39,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     ref.read(registerControllerProvider.notifier).register();
   }
 
-  Future<void> _completeRegistration() async {
+  Future<void> _completeRegistration(RegisterState registrationState) async {
     if (_isCompletingRegistration) {
       return;
     }
@@ -48,9 +47,50 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     _isCompletingRegistration = true;
 
     try {
-      await ref.read(authSessionControllerProvider.notifier).signIn();
+      await Future<void>.delayed(Duration.zero);
 
       if (!mounted) {
+        return;
+      }
+
+      if (registrationState.requiresEmailConfirmation) {
+        await showDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          builder: (dialogContext) {
+            return AlertDialog(
+              icon: const Icon(
+                Icons.mark_email_read_outlined,
+                color: AppColors.actionBlue,
+                size: 44,
+              ),
+              title: const Text('Sahkan E-mel Anda'),
+              content: Text(
+                'Pautan pengesahan telah dihantar ke:\n\n'
+                '${registrationState.email}\n\n'
+                'Buka e-mel tersebut dan sahkan akaun '
+                'sebelum log masuk.',
+              ),
+              actions: [
+                FilledButton(
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop();
+                  },
+                  child: const Text('Kembali ke Log Masuk'),
+                ),
+              ],
+            );
+          },
+        );
+
+        if (!mounted) {
+          return;
+        }
+
+        ref.read(registerControllerProvider.notifier).reset();
+
+        context.goNamed(RouteNames.login);
+
         return;
       }
 
@@ -74,7 +114,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
           next.status == RegisterStatus.success;
 
       if (becameSuccessful) {
-        unawaited(_completeRegistration());
+        unawaited(_completeRegistration(next));
       }
     });
 

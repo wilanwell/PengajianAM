@@ -1,12 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../data/repositories/shared_preferences_auth_session_repository.dart';
+import '../../../../core/services/supabase_client_provider.dart';
+import '../../data/repositories/supabase_auth_session_repository.dart';
+import '../../domain/entities/auth_registration_result.dart';
 import '../../domain/entities/auth_session.dart';
 import '../../domain/repositories/auth_session_repository.dart';
 import 'auth_session_state.dart';
 
 final authSessionRepositoryProvider = Provider<AuthSessionRepository>((ref) {
-  return SharedPreferencesAuthSessionRepository();
+  return SupabaseAuthSessionRepository(ref.read(supabaseClientProvider));
 });
 
 final authSessionControllerProvider =
@@ -15,12 +19,34 @@ final authSessionControllerProvider =
     );
 
 class AuthSessionController extends Notifier<AuthSessionState> {
+  StreamSubscription<AuthSession?>? _subscription;
+
   AuthSessionRepository get _repository {
     return ref.read(authSessionRepositoryProvider);
   }
 
   @override
   AuthSessionState build() {
+    _subscription = _repository.authStateChanges.listen(
+      _handleSessionChange,
+      onError: (Object error, StackTrace stackTrace) {
+        if (state.status == AuthSessionStatus.initial ||
+            state.status == AuthSessionStatus.loading) {
+          state = const AuthSessionState(
+            status: AuthSessionStatus.unauthenticated,
+          );
+        }
+      },
+    );
+
+    ref.onDispose(() {
+      final subscription = _subscription;
+
+      if (subscription != null) {
+        unawaited(subscription.cancel());
+      }
+    });
+
     return const AuthSessionState();
   }
 
@@ -34,56 +60,75 @@ class AuthSessionController extends Notifier<AuthSessionState> {
 
     state = const AuthSessionState(status: AuthSessionStatus.loading);
 
-    try {
-      final storedSession = await _repository.loadSession();
+    final session = _repository.currentSession;
 
-      if (storedSession?.isAuthenticated == true) {
-        state = AuthSessionState(
-          status: AuthSessionStatus.authenticated,
-          session: storedSession!,
-        );
-
-        return;
-      }
-
-      state = const AuthSessionState(status: AuthSessionStatus.unauthenticated);
-    } catch (_) {
-      // Jika local storage gagal dibaca, pengguna dibawa
-      // ke Login dan aplikasi masih boleh digunakan.
-      state = const AuthSessionState(status: AuthSessionStatus.unauthenticated);
-    }
+    _handleSessionChange(session);
   }
 
-  Future<void> signIn() async {
-    final session = AuthSession(
-      isAuthenticated: true,
-      signedInAt: DateTime.now(),
+  Future<void> signInWithPassword({
+    required String email,
+    required String password,
+  }) async {
+    state = const AuthSessionState(status: AuthSessionStatus.loading);
+
+    final session = await _repository.signInWithPassword(
+      email: email,
+      password: password,
     );
 
     state = AuthSessionState(
       status: AuthSessionStatus.authenticated,
       session: session,
     );
+  }
 
-    try {
-      await _repository.saveSession(session);
-    } catch (_) {
-      // Sesi masih aktif untuk penggunaan semasa walaupun
-      // local persistence gagal.
+  Future<AuthRegistrationResult> signUp({
+    required String displayName,
+    required String email,
+    required String password,
+  }) async {
+    state = const AuthSessionState(status: AuthSessionStatus.loading);
+
+    final result = await _repository.signUp(
+      displayName: displayName,
+      email: email,
+      password: password,
+    );
+
+    final session = result.session;
+
+    if (session == null) {
+      state = const AuthSessionState(status: AuthSessionStatus.unauthenticated);
+    } else {
+      state = AuthSessionState(
+        status: AuthSessionStatus.authenticated,
+        session: session,
+      );
     }
+
+    return result;
   }
 
   Future<void> signOut() async {
-    state = const AuthSessionState(status: AuthSessionStatus.unauthenticated);
+    await _repository.signOut();
 
-    try {
-      await _repository.clearSession();
-    } catch (_) {
-      // State semasa tetap dianggap sudah log keluar.
-    }
+    state = const AuthSessionState(status: AuthSessionStatus.unauthenticated);
   }
 
   void resetState() {
     state = const AuthSessionState();
+  }
+
+  void _handleSessionChange(AuthSession? session) {
+    if (session?.isAuthenticated == true) {
+      state = AuthSessionState(
+        status: AuthSessionStatus.authenticated,
+        session: session!,
+      );
+
+      return;
+    }
+
+    state = const AuthSessionState(status: AuthSessionStatus.unauthenticated);
   }
 }

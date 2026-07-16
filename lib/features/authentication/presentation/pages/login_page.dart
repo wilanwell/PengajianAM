@@ -10,7 +10,6 @@ import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../core/widgets/app_text_field.dart';
 import '../../domain/validators/auth_validators.dart';
-import '../controllers/auth_session_controller.dart';
 import '../controllers/login_controller.dart';
 import '../controllers/login_state.dart';
 
@@ -48,8 +47,6 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     _isCompletingLogin = true;
 
     try {
-      await ref.read(authSessionControllerProvider.notifier).signIn();
-
       if (!mounted) {
         return;
       }
