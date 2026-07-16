@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_mode.dart';
-import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_question.dart';
+import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_session.dart';
+import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_session_question.dart';
+import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_submission.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/repositories/quiz_repository.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/presentation/controllers/quiz_session_controller.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/presentation/pages/quiz_question_page.dart';
@@ -11,20 +13,39 @@ class _FakeQuizRepository implements QuizRepository {
   const _FakeQuizRepository();
 
   @override
-  Future<List<QuizQuestion>> getQuestions({
+  Future<QuizSession> startQuiz({
     required String topicId,
-    required int limit,
+    required QuizMode mode,
+    required int questionCount,
   }) async {
-    return [
-      QuizQuestion(
-        id: 'q1',
-        topicId: topicId,
-        questionText: 'Soalan ujian keluar kuiz',
-        options: const ['Jawapan A', 'Jawapan B'],
-        correctOptionIndex: 0,
-        explanation: 'Penerangan soalan ujian.',
-      ),
-    ];
+    return QuizSession(
+      sessionId: '00000000-0000-0000-0000-000000000010',
+      topicId: topicId,
+      mode: mode,
+      questionCount: 1,
+      expiresAt: DateTime(2026, 7, 16, 12),
+      questions: [
+        QuizSessionQuestion(
+          id: 'q1',
+          topicId: topicId,
+          questionText: 'Soalan ujian keluar kuiz',
+          options: const ['Jawapan A', 'Jawapan B'],
+          questionOrder: 1,
+        ),
+      ],
+    );
+  }
+
+  @override
+  Future<QuizSubmission> submitQuiz({
+    required String sessionId,
+    required Map<String, int> selectedAnswers,
+    required Duration elapsedTime,
+    required bool autoSubmitted,
+  }) async {
+    throw UnimplementedError(
+      'Submission tidak digunakan dalam test keluar kuiz.',
+    );
   }
 }
 
@@ -67,17 +88,27 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('Buka Kuiz'));
+    final openQuizButton = find.widgetWithText(FilledButton, 'Buka Kuiz');
+
+    expect(openQuizButton, findsOneWidget);
+
+    await tester.tap(openQuizButton);
 
     await tester.pumpAndSettle();
 
     expect(find.text('Soalan ujian keluar kuiz'), findsOneWidget);
 
+    expect(find.text('Jawapan A'), findsOneWidget);
+
     await tester.tap(find.text('Jawapan A'));
 
     await tester.pump();
 
-    await tester.tap(find.byType(BackButton));
+    final backButton = find.byType(BackButton);
+
+    expect(backButton, findsOneWidget);
+
+    await tester.tap(backButton);
 
     await tester.pumpAndSettle();
 
@@ -88,6 +119,8 @@ void main() {
       findsOneWidget,
     );
 
+    expect(find.textContaining('0 soalan belum dijawab'), findsOneWidget);
+
     // Batalkan cubaan keluar.
     await tester.tap(find.text('Teruskan Kuiz'));
 
@@ -95,12 +128,20 @@ void main() {
 
     expect(find.text('Soalan ujian keluar kuiz'), findsOneWidget);
 
+    expect(find.text('Jawapan A'), findsOneWidget);
+
     // Cuba keluar sekali lagi.
     await tester.tap(find.byType(BackButton));
 
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Keluar'));
+    expect(find.text('Keluar Kuiz?'), findsOneWidget);
+
+    final exitButton = find.widgetWithText(FilledButton, 'Keluar');
+
+    expect(exitButton, findsOneWidget);
+
+    await tester.tap(exitButton);
 
     await tester.pumpAndSettle();
 

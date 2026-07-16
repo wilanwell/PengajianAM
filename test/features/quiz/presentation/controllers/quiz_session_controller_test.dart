@@ -6,6 +6,10 @@ import 'package:pengajian_am_stpm_objektif/features/progress/presentation/contro
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_attempt.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_mode.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_question.dart';
+import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_result.dart';
+import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_session.dart';
+import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_session_question.dart';
+import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_submission.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/repositories/quiz_history_repository.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/repositories/quiz_repository.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/presentation/controllers/quiz_history_controller.dart';
@@ -13,31 +17,89 @@ import 'package:pengajian_am_stpm_objektif/features/quiz/presentation/controller
 import 'package:pengajian_am_stpm_objektif/features/quiz/presentation/controllers/quiz_session_state.dart';
 
 class _FakeQuizRepository implements QuizRepository {
-  const _FakeQuizRepository();
+  Map<String, int>? submittedAnswers;
 
   @override
-  Future<List<QuizQuestion>> getQuestions({
+  Future<QuizSession> startQuiz({
     required String topicId,
-    required int limit,
+    required QuizMode mode,
+    required int questionCount,
   }) async {
-    return [
-      QuizQuestion(
-        id: 'q1',
-        topicId: topicId,
-        questionText: 'Soalan satu',
-        options: const ['Betul', 'Salah'],
-        correctOptionIndex: 0,
-        explanation: 'Penerangan satu',
-      ),
-      QuizQuestion(
-        id: 'q2',
-        topicId: topicId,
-        questionText: 'Soalan dua',
-        options: const ['Salah', 'Betul'],
-        correctOptionIndex: 1,
-        explanation: 'Penerangan dua',
-      ),
-    ];
+    return QuizSession(
+      sessionId: '00000000-0000-0000-0000-000000000001',
+      topicId: topicId,
+      mode: mode,
+      questionCount: 2,
+      expiresAt: DateTime(2026, 7, 16, 12),
+
+      // Jangan gunakan const pada senarai ini kerana
+      // QuizSessionQuestion memeriksa options.length.
+      questions: [
+        QuizSessionQuestion(
+          id: 'q1',
+          topicId: 'topic-s1-02',
+          questionText: 'Soalan satu',
+          options: const ['Betul', 'Salah'],
+          questionOrder: 1,
+        ),
+        QuizSessionQuestion(
+          id: 'q2',
+          topicId: 'topic-s1-02',
+          questionText: 'Soalan dua',
+          options: const ['Salah', 'Betul'],
+          questionOrder: 2,
+        ),
+      ],
+    );
+  }
+
+  @override
+  Future<QuizSubmission> submitQuiz({
+    required String sessionId,
+    required Map<String, int> selectedAnswers,
+    required Duration elapsedTime,
+    required bool autoSubmitted,
+  }) async {
+    submittedAnswers = Map<String, int>.from(selectedAnswers);
+
+    final result = QuizResult(
+      topicId: 'topic-s1-02',
+      topicCode: 'S1-02',
+      topicTitle: 'Negara Berdaulat',
+      mode: QuizMode.practice,
+      questions: [
+        QuizQuestion(
+          id: 'q1',
+          topicId: 'topic-s1-02',
+          questionText: 'Soalan satu',
+          options: const ['Betul', 'Salah'],
+          correctOptionIndex: 0,
+          explanation: 'Jawapan Betul adalah tepat.',
+          shuffleOptions: false,
+        ),
+        QuizQuestion(
+          id: 'q2',
+          topicId: 'topic-s1-02',
+          questionText: 'Soalan dua',
+          options: const ['Salah', 'Betul'],
+          correctOptionIndex: 1,
+          explanation: 'Jawapan Betul adalah tepat.',
+          shuffleOptions: false,
+        ),
+      ],
+      selectedAnswers: Map<String, int>.unmodifiable(selectedAnswers),
+      correctAnswers: 1,
+      answeredQuestions: selectedAnswers.length,
+      elapsedTime: elapsedTime,
+      autoSubmitted: autoSubmitted,
+    );
+
+    return QuizSubmission(
+      attemptId: '00000000-0000-0000-0000-000000000002',
+      earnedXp: 30,
+      completedAt: DateTime(2026, 7, 16, 11),
+      result: result,
+    );
   }
 }
 
@@ -80,14 +142,16 @@ class _FakeQuizHistoryRepository implements QuizHistoryRepository {
 }
 
 void main() {
-  test('memulakan, menjawab, menghantar dan menyimpan kuiz', () async {
+  test('memulakan, menghantar dan menyimpan kuiz server', () async {
+    final quizRepository = _FakeQuizRepository();
+
     final progressRepository = _FakeUserProgressRepository();
 
     final historyRepository = _FakeQuizHistoryRepository();
 
     final container = ProviderContainer(
       overrides: [
-        quizRepositoryProvider.overrideWithValue(const _FakeQuizRepository()),
+        quizRepositoryProvider.overrideWithValue(quizRepository),
         userProgressRepositoryProvider.overrideWithValue(progressRepository),
         quizHistoryRepositoryProvider.overrideWithValue(historyRepository),
       ],
@@ -107,41 +171,23 @@ void main() {
 
     expect(state.status, QuizSessionStatus.ready);
 
+    expect(state.sessionId, '00000000-0000-0000-0000-000000000001');
+
     expect(state.questions, hasLength(2));
 
-    /*
-       * Soalan dan pilihan jawapan telah dirandomkan.
-       * Oleh itu, test tidak boleh menganggap jawapan betul
-       * sentiasa berada pada index 0.
-       */
+    expect(state.currentQuestion?.id, 'q1');
 
-    var currentQuestion = state.currentQuestion;
-
-    expect(currentQuestion, isNotNull);
-
-    // Jawab soalan pertama dengan jawapan yang betul.
-    controller.selectAnswer(currentQuestion!.correctOptionIndex);
-
-    // Tandakan soalan pertama.
-    controller.toggleFlagCurrentQuestion();
+    // Jawab soalan pertama dengan jawapan betul.
+    controller.selectAnswer(0);
 
     controller.nextQuestion();
 
     state = container.read(quizSessionControllerProvider);
 
-    currentQuestion = state.currentQuestion;
+    expect(state.currentQuestion?.id, 'q2');
 
-    expect(currentQuestion, isNotNull);
-
-    /*
-       * Pilih jawapan yang salah untuk soalan kedua.
-       * Formula ini memilih index selepas correctOptionIndex.
-       */
-    final incorrectOptionIndex =
-        (currentQuestion!.correctOptionIndex + 1) %
-        currentQuestion.options.length;
-
-    controller.selectAnswer(incorrectOptionIndex);
+    // Jawab soalan kedua dengan jawapan salah.
+    controller.selectAnswer(0);
 
     await controller.submitQuiz();
 
@@ -151,34 +197,28 @@ void main() {
 
     expect(state.result, isNotNull);
 
-    // Satu jawapan betul dan satu jawapan salah.
     expect(state.result!.correctAnswers, 1);
 
     expect(state.result!.answeredQuestions, 2);
 
     expect(state.result!.totalQuestions, 2);
 
-    // Kedua-dua soalan dijawab.
-    expect(state.result!.unansweredQuestions, 0);
+    expect(quizRepository.submittedAnswers, {'q1': 0, 'q2': 0});
 
-    // Progress pengguna berjaya disimpan.
     expect(progressRepository.storedProgress, isNotNull);
 
-    /*
-       * XP:
-       * 1 jawapan betul × 10 XP = 10 XP
-       * Semua soalan dijawab = 20 XP
-       * Jumlah = 30 XP
-       */
+    // Nilai awal ialah 1820 XP dan server memberikan 30 XP.
     expect(progressRepository.storedProgress!.totalXp, 1850);
 
-    // Sejarah kuiz berjaya disimpan.
     expect(historyRepository.attempts, hasLength(1));
+
+    expect(
+      historyRepository.attempts.first.id,
+      '00000000-0000-0000-0000-000000000002',
+    );
 
     expect(historyRepository.attempts.first.earnedXp, 30);
 
     expect(historyRepository.attempts.first.result.correctAnswers, 1);
-
-    expect(historyRepository.attempts.first.result.answeredQuestions, 2);
   });
 }

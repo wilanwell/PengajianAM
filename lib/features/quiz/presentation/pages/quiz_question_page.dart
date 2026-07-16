@@ -228,6 +228,22 @@ class _QuizQuestionPageState extends ConsumerState<QuizQuestionPage> {
       previous,
       next,
     ) {
+      final nextError = next.errorMessage;
+
+      if (next.status == QuizSessionStatus.ready &&
+          nextError != null &&
+          nextError != previous?.errorMessage) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) {
+            return;
+          }
+
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(SnackBar(content: Text(nextError)));
+        });
+      }
+
       if (previous?.status != QuizSessionStatus.completed &&
           next.status == QuizSessionStatus.completed &&
           next.result != null) {

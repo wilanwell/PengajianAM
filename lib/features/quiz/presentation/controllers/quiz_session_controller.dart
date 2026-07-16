@@ -2,22 +2,17 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/services/supabase_client_provider.dart';
 import '../../../progress/presentation/controllers/user_progress_controller.dart';
-import '../../../topics/presentation/controllers/topics_controller.dart';
-import '../../data/repositories/mock_quiz_repository.dart';
+import '../../data/repositories/supabase_quiz_repository.dart';
 import '../../domain/entities/quiz_mode.dart';
-import '../../domain/entities/quiz_result.dart';
+import '../../domain/exceptions/quiz_failure.dart';
 import '../../domain/repositories/quiz_repository.dart';
-import '../../domain/services/quiz_randomizer.dart';
 import 'quiz_history_controller.dart';
 import 'quiz_session_state.dart';
 
 final quizRepositoryProvider = Provider<QuizRepository>((ref) {
-  return const MockQuizRepository();
-});
-
-final quizRandomizerProvider = Provider<QuizRandomizer>((ref) {
-  return const QuizRandomizer();
+  return SupabaseQuizRepository(ref.read(supabaseClientProvider));
 });
 
 final quizSessionControllerProvider =
@@ -31,10 +26,6 @@ class QuizSessionController extends Notifier<QuizSessionState> {
 
   QuizRepository get _repository {
     return ref.read(quizRepositoryProvider);
-  }
-
-  QuizRandomizer get _randomizer {
-    return ref.read(quizRandomizerProvider);
   }
 
   @override
@@ -59,12 +50,13 @@ class QuizSessionController extends Notifier<QuizSessionState> {
     );
 
     try {
-      final rawQuestions = await _repository.getQuestions(
+      final quizSession = await _repository.startQuiz(
         topicId: topicId,
-        limit: questionCount,
+        mode: mode,
+        questionCount: questionCount,
       );
 
-      if (rawQuestions.isEmpty) {
+      if (quizSession.questions.isEmpty) {
         state = QuizSessionState(
           status: QuizSessionStatus.failure,
           topicId: topicId,
@@ -76,78 +68,45 @@ class QuizSessionController extends Notifier<QuizSessionState> {
         return;
       }
 
-      if (rawQuestions.length < questionCount) {
-        state = QuizSessionState(
-          status: QuizSessionStatus.failure,
-          topicId: topicId,
-          mode: mode,
-          requestedQuestionCount: questionCount,
-          errorMessage:
-              'Hanya ${rawQuestions.length} soalan unik tersedia '
-              'untuk topik ini.',
-        );
-
-        return;
-      }
-
-      final uniqueQuestionIds = rawQuestions
-          .map((question) => question.id)
-          .toSet();
-
-      if (uniqueQuestionIds.length != rawQuestions.length) {
-        state = QuizSessionState(
-          status: QuizSessionStatus.failure,
-          topicId: topicId,
-          mode: mode,
-          requestedQuestionCount: questionCount,
-          errorMessage: 'Bank soalan mengandungi rekod yang berulang.',
-        );
-
-        return;
-      }
-
       final startedAt = DateTime.now();
-
-      final currentUser = ref.read(userProgressControllerProvider);
-
-      final shuffleSeed = Object.hash(
-        currentUser.userId,
-        topicId,
-        mode.name,
-        questionCount,
-        startedAt.microsecondsSinceEpoch,
-      );
-
-      final randomizedQuestions = _randomizer.randomize(
-        questions: rawQuestions,
-        seed: shuffleSeed,
-      );
 
       _startedAt = startedAt;
 
       final remainingSeconds = mode == QuizMode.exam
-          ? (randomizedQuestions.length * 1.5 * 60).ceil()
+          ? (quizSession.questions.length * 1.5 * 60).ceil()
           : null;
 
       state = QuizSessionState(
         status: QuizSessionStatus.ready,
-        topicId: topicId,
-        mode: mode,
-        requestedQuestionCount: questionCount,
-        questions: randomizedQuestions,
+        sessionId: quizSession.sessionId,
+        topicId: quizSession.topicId,
+        mode: quizSession.mode,
+        requestedQuestionCount: quizSession.questionCount,
+        questions: quizSession.questions,
         remainingSeconds: remainingSeconds,
+        sessionExpiresAt: quizSession.expiresAt,
       );
 
       if (remainingSeconds != null) {
         _startTimer();
       }
+    } on QuizFailure catch (error) {
+      state = QuizSessionState(
+        status: QuizSessionStatus.failure,
+        topicId: topicId,
+        mode: mode,
+        requestedQuestionCount: questionCount,
+        errorMessage: error.message,
+      );
     } catch (_) {
       state = QuizSessionState(
         status: QuizSessionStatus.failure,
         topicId: topicId,
         mode: mode,
         requestedQuestionCount: questionCount,
-        errorMessage: 'Kuiz tidak dapat dimulakan. Sila cuba semula.',
+        errorMessage:
+            'Kuiz tidak dapat dimulakan. '
+            'Sila cuba semula.',
       );
     }
   }
@@ -171,6 +130,7 @@ class QuizSessionController extends Notifier<QuizSessionState> {
 
     state = state.copyWith(
       selectedAnswers: Map<String, int>.unmodifiable(updatedAnswers),
+      clearErrorMessage: true,
     );
   }
 
@@ -227,6 +187,14 @@ class QuizSessionController extends Notifier<QuizSessionState> {
       return;
     }
 
+    final sessionId = state.sessionId;
+
+    if (sessionId == null || sessionId.trim().isEmpty) {
+      state = state.copyWith(errorMessage: 'Sesi kuiz tidak tersedia.');
+
+      return;
+    }
+
     _cancelTimer();
 
     state = state.copyWith(
@@ -234,57 +202,70 @@ class QuizSessionController extends Notifier<QuizSessionState> {
       clearErrorMessage: true,
     );
 
-    await Future<void>.delayed(const Duration(milliseconds: 300));
-
-    final selectedAnswers = Map<String, int>.unmodifiable(
-      state.selectedAnswers,
-    );
-
-    final correctAnswers = state.questions.where((question) {
-      return question.isCorrect(selectedAnswers[question.id]);
-    }).length;
-
     final startedAt = _startedAt ?? DateTime.now();
 
-    var topicCode = '';
-    var topicTitle = 'Topik Pengajian AM';
+    final elapsedTime = DateTime.now().difference(startedAt);
 
-    final topicsState = ref.read(topicsControllerProvider);
+    try {
+      final submission = await _repository.submitQuiz(
+        sessionId: sessionId,
+        selectedAnswers: state.selectedAnswers,
+        elapsedTime: elapsedTime,
+        autoSubmitted: autoSubmitted,
+      );
 
-    for (final topic in topicsState.topics) {
-      if (topic.id == state.topicId) {
-        topicCode = topic.code;
-        topicTitle = topic.title;
-        break;
+      /*
+       * Supabase ialah sumber kebenaran markah dan XP.
+       * SharedPreferences hanya menjadi cache sementara
+       * sehingga Progress dipindahkan sepenuhnya.
+       */
+      try {
+        await ref
+            .read(userProgressControllerProvider.notifier)
+            .recordServerQuizResult(
+              result: submission.result,
+              earnedXp: submission.earnedXp,
+            );
+      } catch (_) {
+        // Keputusan server masih dianggap berjaya.
       }
+
+      try {
+        await ref
+            .read(quizHistoryControllerProvider.notifier)
+            .recordServerAttempt(
+              attemptId: submission.attemptId,
+              completedAt: submission.completedAt,
+              earnedXp: submission.earnedXp,
+              result: submission.result,
+            );
+      } catch (_) {
+        // History server masih tersimpan walaupun
+        // cache tempatan gagal dikemas kini.
+      }
+
+      state = state.copyWith(
+        status: QuizSessionStatus.completed,
+        result: submission.result,
+        clearErrorMessage: true,
+      );
+    } on QuizFailure catch (error) {
+      state = state.copyWith(
+        status: QuizSessionStatus.ready,
+        errorMessage: error.message,
+      );
+
+      _restartTimerWhenNeeded();
+    } catch (_) {
+      state = state.copyWith(
+        status: QuizSessionStatus.ready,
+        errorMessage:
+            'Jawapan tidak dapat dihantar. '
+            'Sila cuba semula.',
+      );
+
+      _restartTimerWhenNeeded();
     }
-
-    final result = QuizResult(
-      topicId: state.topicId ?? '',
-      topicCode: topicCode,
-      topicTitle: topicTitle,
-      mode: state.mode,
-      questions: List.unmodifiable(state.questions),
-      selectedAnswers: selectedAnswers,
-      correctAnswers: correctAnswers,
-      answeredQuestions: selectedAnswers.length,
-      elapsedTime: DateTime.now().difference(startedAt),
-      autoSubmitted: autoSubmitted,
-    );
-
-    final progressController = ref.read(
-      userProgressControllerProvider.notifier,
-    );
-
-    final earnedXp = progressController.calculateEarnedXp(result);
-
-    await progressController.recordQuizResult(result);
-
-    await ref
-        .read(quizHistoryControllerProvider.notifier)
-        .recordAttempt(result: result, earnedXp: earnedXp);
-
-    state = state.copyWith(status: QuizSessionStatus.completed, result: result);
   }
 
   void reset() {
@@ -292,6 +273,14 @@ class QuizSessionController extends Notifier<QuizSessionState> {
     _startedAt = null;
 
     state = const QuizSessionState();
+  }
+
+  void _restartTimerWhenNeeded() {
+    final remainingSeconds = state.remainingSeconds;
+
+    if (remainingSeconds != null && remainingSeconds > 0) {
+      _startTimer();
+    }
   }
 
   void _startTimer() {

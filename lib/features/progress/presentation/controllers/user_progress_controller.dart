@@ -60,10 +60,20 @@ class UserProgressController extends Notifier<UserProgress> {
     return correctAnswerXp + completionBonus + perfectScoreBonus;
   }
 
-  Future<void> recordQuizResult(QuizResult result) async {
+  Future<void> recordQuizResult(QuizResult result) {
+    return recordServerQuizResult(
+      result: result,
+      earnedXp: calculateEarnedXp(result),
+    );
+  }
+
+  Future<void> recordServerQuizResult({
+    required QuizResult result,
+    required int earnedXp,
+  }) async {
     await initialize();
 
-    final earnedXp = calculateEarnedXp(result);
+    final normalizedEarnedXp = earnedXp < 0 ? 0 : earnedXp;
 
     final updatedWeeklyActivity = List<int>.filled(7, 0);
 
@@ -81,9 +91,9 @@ class UserProgressController extends Notifier<UserProgress> {
     updatedWeeklyActivity[currentDayIndex] += result.answeredQuestions;
 
     state = state.copyWith(
-      totalXp: state.totalXp + earnedXp,
-      weeklyXp: state.weeklyXp + earnedXp,
-      monthlyXp: state.monthlyXp + earnedXp,
+      totalXp: state.totalXp + normalizedEarnedXp,
+      weeklyXp: state.weeklyXp + normalizedEarnedXp,
+      monthlyXp: state.monthlyXp + normalizedEarnedXp,
       completedQuizzes: state.completedQuizzes + 1,
       totalCorrectAnswers: state.totalCorrectAnswers + result.correctAnswers,
       totalQuizQuestions: state.totalQuizQuestions + result.totalQuestions,

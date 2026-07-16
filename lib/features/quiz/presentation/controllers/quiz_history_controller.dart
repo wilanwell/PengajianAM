@@ -58,19 +58,39 @@ class QuizHistoryController extends Notifier<QuizHistoryState> {
     required QuizResult result,
     required int earnedXp,
   }) async {
+    final attempt = QuizAttempt.create(result: result, earnedXp: earnedXp);
+
+    await _storeAttempt(attempt);
+  }
+
+  Future<void> recordServerAttempt({
+    required String attemptId,
+    required DateTime completedAt,
+    required int earnedXp,
+    required QuizResult result,
+  }) async {
+    final attempt = QuizAttempt(
+      id: attemptId,
+      completedAt: completedAt,
+      earnedXp: earnedXp,
+      result: result,
+    );
+
+    await _storeAttempt(attempt);
+  }
+
+  Future<void> _storeAttempt(QuizAttempt attempt) async {
     if (state.status != QuizHistoryStatus.success) {
       await loadHistory(
         forceRefresh: state.status == QuizHistoryStatus.failure,
       );
     }
 
-    final attempt = QuizAttempt.create(result: result, earnedXp: earnedXp);
-
     final updatedAttempts = <QuizAttempt>[
       attempt,
-      ...state.attempts.where(
-        (existingAttempt) => existingAttempt.id != attempt.id,
-      ),
+      ...state.attempts.where((existingAttempt) {
+        return existingAttempt.id != attempt.id;
+      }),
     ];
 
     final limitedAttempts = updatedAttempts

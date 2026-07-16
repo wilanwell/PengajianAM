@@ -1,6 +1,6 @@
 import '../../domain/entities/quiz_mode.dart';
-import '../../domain/entities/quiz_question.dart';
 import '../../domain/entities/quiz_result.dart';
+import '../../domain/entities/quiz_session_question.dart';
 
 enum QuizSessionStatus {
   initial,
@@ -14,6 +14,7 @@ enum QuizSessionStatus {
 class QuizSessionState {
   const QuizSessionState({
     this.status = QuizSessionStatus.initial,
+    this.sessionId,
     this.topicId,
     this.mode = QuizMode.practice,
     this.requestedQuestionCount = 10,
@@ -22,23 +23,26 @@ class QuizSessionState {
     this.selectedAnswers = const {},
     this.flaggedQuestionIds = const {},
     this.remainingSeconds,
+    this.sessionExpiresAt,
     this.result,
     this.errorMessage,
   });
 
   final QuizSessionStatus status;
+  final String? sessionId;
   final String? topicId;
   final QuizMode mode;
   final int requestedQuestionCount;
-  final List<QuizQuestion> questions;
+  final List<QuizSessionQuestion> questions;
   final int currentQuestionIndex;
   final Map<String, int> selectedAnswers;
   final Set<String> flaggedQuestionIds;
   final int? remainingSeconds;
+  final DateTime? sessionExpiresAt;
   final QuizResult? result;
   final String? errorMessage;
 
-  QuizQuestion? get currentQuestion {
+  QuizSessionQuestion? get currentQuestion {
     if (questions.isEmpty ||
         currentQuestionIndex < 0 ||
         currentQuestionIndex >= questions.length) {
@@ -130,22 +134,27 @@ class QuizSessionState {
 
   QuizSessionState copyWith({
     QuizSessionStatus? status,
+    String? sessionId,
     String? topicId,
     QuizMode? mode,
     int? requestedQuestionCount,
-    List<QuizQuestion>? questions,
+    List<QuizSessionQuestion>? questions,
     int? currentQuestionIndex,
     Map<String, int>? selectedAnswers,
     Set<String>? flaggedQuestionIds,
     int? remainingSeconds,
+    DateTime? sessionExpiresAt,
     QuizResult? result,
     String? errorMessage,
+    bool clearSessionId = false,
     bool clearRemainingSeconds = false,
+    bool clearSessionExpiresAt = false,
     bool clearResult = false,
     bool clearErrorMessage = false,
   }) {
     return QuizSessionState(
       status: status ?? this.status,
+      sessionId: clearSessionId ? null : sessionId ?? this.sessionId,
       topicId: topicId ?? this.topicId,
       mode: mode ?? this.mode,
       requestedQuestionCount:
@@ -157,6 +166,9 @@ class QuizSessionState {
       remainingSeconds: clearRemainingSeconds
           ? null
           : remainingSeconds ?? this.remainingSeconds,
+      sessionExpiresAt: clearSessionExpiresAt
+          ? null
+          : sessionExpiresAt ?? this.sessionExpiresAt,
       result: clearResult ? null : result ?? this.result,
       errorMessage: clearErrorMessage
           ? null
