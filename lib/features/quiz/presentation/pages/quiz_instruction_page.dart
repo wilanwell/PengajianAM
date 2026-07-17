@@ -6,6 +6,7 @@ import '../../../../app/router/route_names.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_spacing.dart';
+import '../../../../core/widgets/app_disclaimer_card.dart';
 import '../../../topics/domain/entities/study_topic.dart';
 import '../../../topics/presentation/controllers/topics_controller.dart';
 import '../../domain/entities/quiz_draft.dart';
@@ -460,6 +461,15 @@ class _QuizInstructionContent extends StatelessWidget {
               ),
             ),
             const SizedBox(height: AppSpacing.lg),
+
+            /*
+             * Disclaimer diletakkan pada halaman
+             * Arahan Kuiz, bukan di dalam actions
+             * dialog draft.
+             */
+            const AppDisclaimerCard(),
+            const SizedBox(height: AppSpacing.lg),
+
             FilledButton.icon(
               onPressed: isProcessing ? null : onStart,
               icon: isProcessing

@@ -6,6 +6,7 @@ import '../../../../app/router/route_names.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_spacing.dart';
+import '../../../../core/constants/app_disclaimer.dart';
 import '../../../authentication/presentation/controllers/auth_session_controller.dart';
 import '../../../authentication/presentation/controllers/login_controller.dart';
 import '../../../home/presentation/controllers/home_controller.dart';
@@ -113,7 +114,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     showAboutDialog(
       context: context,
       applicationName: 'Pengajian AM STPM Objektif',
-      applicationVersion: 'Versi pembangunan 1.0',
+      applicationVersion: 'Versi pembangunan 1.0.0',
       applicationIcon: const CircleAvatar(
         backgroundColor: AppColors.primary,
         foregroundColor: AppColors.textOnPrimary,
@@ -125,6 +126,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           'membantu pelajar mengulang kaji '
           'Pengajian AM STPM.',
         ),
+        SizedBox(height: AppSpacing.md),
+        Text(AppDisclaimer.fullMessage),
       ],
     );
   }
