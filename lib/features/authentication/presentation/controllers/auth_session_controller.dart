@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/network/presentation/providers/network_request_executor_provider.dart';
 import '../../../../core/services/supabase_client_provider.dart';
 import '../../data/repositories/supabase_auth_session_repository.dart';
 import '../../domain/entities/auth_registration_result.dart';
@@ -10,7 +11,10 @@ import '../../domain/repositories/auth_session_repository.dart';
 import 'auth_session_state.dart';
 
 final authSessionRepositoryProvider = Provider<AuthSessionRepository>((ref) {
-  return SupabaseAuthSessionRepository(ref.read(supabaseClientProvider));
+  return SupabaseAuthSessionRepository(
+    ref.read(supabaseClientProvider),
+    ref.read(networkRequestExecutorProvider),
+  );
 });
 
 final authSessionControllerProvider =

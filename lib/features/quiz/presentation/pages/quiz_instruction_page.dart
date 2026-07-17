@@ -10,6 +10,7 @@ import '../../../topics/domain/entities/study_topic.dart';
 import '../../../topics/presentation/controllers/topics_controller.dart';
 import '../../domain/entities/quiz_draft.dart';
 import '../../domain/entities/quiz_mode.dart';
+import '../../domain/exceptions/quiz_draft_failure.dart';
 import '../controllers/quiz_session_controller.dart';
 import '../widgets/quiz_instruction_item.dart';
 
@@ -47,7 +48,38 @@ class _QuizInstructionPageState extends ConsumerState<QuizInstructionPage> {
 
     final controller = ref.read(quizSessionControllerProvider.notifier);
 
-    final draft = await controller.loadAvailableDraft();
+    QuizDraft? draft;
+
+    try {
+      draft = await controller.loadAvailableDraft();
+    } on QuizDraftFailure catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isProcessing = false;
+      });
+
+      await _showDraftVerificationFailure(error.message);
+
+      return;
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isProcessing = false;
+      });
+
+      await _showDraftVerificationFailure(
+        'Sesi tersimpan tidak dapat diperiksa. '
+        'Semak sambungan Internet dan cuba semula.',
+      );
+
+      return;
+    }
 
     if (!mounted) {
       return;
@@ -92,6 +124,7 @@ class _QuizInstructionPageState extends ConsumerState<QuizInstructionPage> {
           questionCount: draft.questionCount,
           resumeDraft: true,
         );
+        return;
 
       case _ExistingDraftAction.startNew:
         setState(() {
@@ -114,7 +147,38 @@ class _QuizInstructionPageState extends ConsumerState<QuizInstructionPage> {
           questionCount: widget.questionCount,
           resumeDraft: false,
         );
+        return;
     }
+  }
+
+  Future<void> _showDraftVerificationFailure(String message) {
+    return showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          icon: const Icon(
+            Icons.cloud_off_rounded,
+            size: 44,
+            color: AppColors.warning,
+          ),
+          title: const Text('Sesi Tersimpan Tidak Dapat Disahkan'),
+          content: Text(
+            '$message\n\n'
+            'Draft tidak dipadamkan. '
+            'Sambungkan peranti kepada Internet '
+            'dan tekan Mula Kuiz sekali lagi.',
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+              child: const Text('Faham'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Future<_ExistingDraftAction?> _showExistingDraftDialog({

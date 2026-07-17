@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/network/presentation/providers/network_request_executor_provider.dart';
 import '../../../../core/services/supabase_client_provider.dart';
 import '../../../quiz/domain/entities/quiz_result.dart';
 import '../../data/repositories/supabase_user_progress_repository.dart';
@@ -9,7 +10,10 @@ import '../../domain/entities/user_progress.dart';
 import '../../domain/repositories/user_progress_repository.dart';
 
 final userProgressRepositoryProvider = Provider<UserProgressRepository>((ref) {
-  return SupabaseUserProgressRepository(ref.read(supabaseClientProvider));
+  return SupabaseUserProgressRepository(
+    ref.read(supabaseClientProvider),
+    ref.read(networkRequestExecutorProvider),
+  );
 });
 
 final userProgressControllerProvider =
@@ -72,7 +76,6 @@ class UserProgressController extends Notifier<UserProgress> {
     return correctAnswerXp + completionBonus + perfectScoreBonus;
   }
 
-  /// Digunakan untuk test atau flow bukan Supabase.
   Future<void> recordQuizResult(QuizResult result) async {
     await initialize();
 
@@ -83,8 +86,6 @@ class UserProgressController extends Notifier<UserProgress> {
     await _saveSafely();
   }
 
-  /// Supabase sudah menyimpan markah dan XP.
-  /// Aplikasi hanya perlu mengambil semula nilai server.
   Future<void> recordServerQuizResult({
     required QuizResult result,
     required int earnedXp,
@@ -148,8 +149,14 @@ class UserProgressController extends Notifier<UserProgress> {
       await _repository.saveProgress(state);
 
       return null;
-    } catch (_) {
+    } catch (error) {
       state = previousState;
+
+      final message = error.toString().trim();
+
+      if (message.isNotEmpty) {
+        return message;
+      }
 
       return 'Nama paparan tidak dapat '
           'dikemas kini.';
@@ -160,8 +167,6 @@ class UserProgressController extends Notifier<UserProgress> {
     return clearLocalProgress();
   }
 
-  /// Nama ini dikekalkan supaya SettingsPage
-  /// sedia ada tidak perlu diubah.
   Future<void> clearLocalProgress() async {
     await _repository.clearProgress();
 

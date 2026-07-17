@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/network/presentation/providers/network_request_executor_provider.dart';
 import '../../../../core/services/supabase_client_provider.dart';
 import '../../data/repositories/supabase_quiz_history_repository.dart';
 import '../../domain/entities/quiz_attempt.dart';
@@ -9,7 +10,10 @@ import '../../domain/repositories/quiz_history_repository.dart';
 import 'quiz_history_state.dart';
 
 final quizHistoryRepositoryProvider = Provider<QuizHistoryRepository>((ref) {
-  return SupabaseQuizHistoryRepository(ref.read(supabaseClientProvider));
+  return SupabaseQuizHistoryRepository(
+    ref.read(supabaseClientProvider),
+    ref.read(networkRequestExecutorProvider),
+  );
 });
 
 final quizHistoryControllerProvider =
@@ -60,13 +64,13 @@ class QuizHistoryController extends Notifier<QuizHistoryState> {
     } catch (_) {
       state = const QuizHistoryState(
         status: QuizHistoryStatus.failure,
-        errorMessage: 'Sejarah kuiz tidak dapat dimuatkan.',
+        errorMessage:
+            'Sejarah kuiz tidak dapat '
+            'dimuatkan.',
       );
     }
   }
 
-  /// Digunakan untuk flow bukan Supabase atau test.
-  /// Percubaan hanya dimasukkan ke state semasa.
   Future<void> recordAttempt({
     required QuizResult result,
     required int earnedXp,
@@ -76,9 +80,6 @@ class QuizHistoryController extends Notifier<QuizHistoryState> {
     _upsertAttemptLocally(attempt);
   }
 
-  /// Attempt sudah disimpan oleh submit_quiz_attempt RPC.
-  /// Method ini hanya menyegerakkan halaman sejarah
-  /// tanpa menulis rekod yang sama untuk kali kedua.
   Future<void> recordServerAttempt({
     required String attemptId,
     required DateTime completedAt,
@@ -159,7 +160,9 @@ class QuizHistoryController extends Notifier<QuizHistoryState> {
     } catch (_) {
       state = state.copyWith(
         status: QuizHistoryStatus.success,
-        errorMessage: 'Rekod kuiz tidak dapat dipadamkan.',
+        errorMessage:
+            'Rekod kuiz tidak dapat '
+            'dipadamkan.',
       );
 
       return false;
@@ -186,7 +189,9 @@ class QuizHistoryController extends Notifier<QuizHistoryState> {
     } catch (_) {
       state = state.copyWith(
         status: QuizHistoryStatus.success,
-        errorMessage: 'Sejarah kuiz tidak dapat dipadamkan.',
+        errorMessage:
+            'Sejarah kuiz tidak dapat '
+            'dipadamkan.',
       );
 
       return false;

@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/network/presentation/providers/network_request_executor_provider.dart';
 import '../../../../core/services/supabase_client_provider.dart';
 import '../../data/repositories/supabase_leaderboard_repository.dart';
 import '../../domain/entities/leaderboard_period.dart';
@@ -8,7 +9,10 @@ import '../../domain/repositories/leaderboard_repository.dart';
 import 'leaderboard_state.dart';
 
 final leaderboardRepositoryProvider = Provider<LeaderboardRepository>((ref) {
-  return SupabaseLeaderboardRepository(ref.read(supabaseClientProvider));
+  return SupabaseLeaderboardRepository(
+    ref.read(supabaseClientProvider),
+    ref.read(networkRequestExecutorProvider),
+  );
 });
 
 final leaderboardControllerProvider =
@@ -68,8 +72,8 @@ class LeaderboardController extends Notifier<LeaderboardState> {
         status: LeaderboardStatus.failure,
         period: selectedPeriod,
         errorMessage:
-            'Leaderboard tidak dapat dimuatkan. '
-            'Sila cuba semula.',
+            'Leaderboard tidak dapat '
+            'dimuatkan. Sila cuba semula.',
       );
     }
   }

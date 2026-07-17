@@ -6,7 +6,9 @@ import '../../../../app/router/route_names.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_spacing.dart';
+import '../../domain/entities/quiz_draft.dart';
 import '../../domain/entities/quiz_mode.dart';
+import '../../domain/exceptions/quiz_draft_failure.dart';
 import '../controllers/quiz_session_controller.dart';
 import '../controllers/quiz_session_state.dart';
 import '../widgets/quiz_answer_option.dart';
@@ -59,7 +61,30 @@ class _QuizQuestionPageState extends ConsumerState<QuizQuestionPage> {
       return;
     }
 
-    final draft = await controller.loadAvailableDraft();
+    QuizDraft? draft;
+
+    try {
+      draft = await controller.loadAvailableDraft();
+    } on QuizDraftFailure catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      _leaveAfterRestoreFailure(error.message);
+
+      return;
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+
+      _leaveAfterRestoreFailure(
+        'Sesi tersimpan tidak dapat disahkan. '
+        'Semak sambungan Internet dan cuba semula.',
+      );
+
+      return;
+    }
 
     if (!mounted) {
       return;
@@ -71,7 +96,30 @@ class _QuizQuestionPageState extends ConsumerState<QuizQuestionPage> {
       return;
     }
 
-    final restored = await controller.restoreDraft(draft);
+    bool restored;
+
+    try {
+      restored = await controller.restoreDraft(draft);
+    } on QuizDraftFailure catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      _leaveAfterRestoreFailure(error.message);
+
+      return;
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+
+      _leaveAfterRestoreFailure(
+        'Sesi kuiz tidak dapat disambung. '
+        'Semak sambungan Internet dan cuba semula.',
+      );
+
+      return;
+    }
 
     if (!mounted) {
       return;
@@ -80,7 +128,7 @@ class _QuizQuestionPageState extends ConsumerState<QuizQuestionPage> {
     if (!restored) {
       _leaveAfterRestoreFailure(
         'Sesi kuiz tidak dapat disambung. '
-        'Sila mulakan kuiz baharu.',
+        'Sila kembali dan cuba semula.',
       );
     }
   }

@@ -1,5 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/network/domain/exceptions/network_request_timeout_failure.dart';
+import '../../../../core/network/domain/services/network_request_executor.dart';
 import '../../domain/entities/leaderboard_entry.dart';
 import '../../domain/entities/leaderboard_period.dart';
 import '../../domain/entities/leaderboard_snapshot.dart';
@@ -7,9 +9,10 @@ import '../../domain/exceptions/leaderboard_failure.dart';
 import '../../domain/repositories/leaderboard_repository.dart';
 
 class SupabaseLeaderboardRepository implements LeaderboardRepository {
-  const SupabaseLeaderboardRepository(this._client);
+  const SupabaseLeaderboardRepository(this._client, this._requestExecutor);
 
   final SupabaseClient _client;
+  final NetworkRequestExecutor _requestExecutor;
 
   @override
   Future<LeaderboardSnapshot> fetchLeaderboard({
@@ -18,14 +21,19 @@ class SupabaseLeaderboardRepository implements LeaderboardRepository {
   }) async {
     if (limit < 3 || limit > 100) {
       throw const LeaderboardFailure(
-        'Had leaderboard mestilah antara 3 dan 100.',
+        'Had leaderboard mestilah antara '
+        '3 dan 100.',
       );
     }
 
     try {
-      final response = await _client.rpc(
-        'get_leaderboard',
-        params: {'p_period': period.name, 'p_limit': limit},
+      final response = await _requestExecutor.run<Object?>(
+        request: () {
+          return _client.rpc(
+            'get_leaderboard',
+            params: {'p_period': period.name, 'p_limit': limit},
+          );
+        },
       );
 
       final responseMap = _readResponseMap(response);
@@ -34,7 +42,8 @@ class SupabaseLeaderboardRepository implements LeaderboardRepository {
 
       if (responsePeriod != period) {
         throw const LeaderboardFailure(
-          'Tempoh leaderboard daripada server tidak sepadan.',
+          'Tempoh leaderboard daripada '
+          'server tidak sepadan.',
         );
       }
 
@@ -42,7 +51,8 @@ class SupabaseLeaderboardRepository implements LeaderboardRepository {
 
       if (rawEntries is! List) {
         throw const LeaderboardFailure(
-          'Senarai leaderboard daripada server tidak sah.',
+          'Senarai leaderboard daripada '
+          'server tidak sah.',
         );
       }
 
@@ -50,23 +60,28 @@ class SupabaseLeaderboardRepository implements LeaderboardRepository {
 
       for (final rawEntry in rawEntries) {
         if (rawEntry is! Map) {
-          throw const LeaderboardFailure('Data peserta leaderboard tidak sah.');
+          throw const LeaderboardFailure(
+            'Data peserta leaderboard '
+            'tidak sah.',
+          );
         }
 
-        final entryMap = Map<String, dynamic>.from(rawEntry);
-
-        entries.add(_readLeaderboardEntry(entryMap));
+        entries.add(_readLeaderboardEntry(Map<String, dynamic>.from(rawEntry)));
       }
 
       if (entries.isEmpty) {
-        throw const LeaderboardFailure('Leaderboard belum mempunyai peserta.');
+        throw const LeaderboardFailure(
+          'Leaderboard belum mempunyai '
+          'peserta.',
+        );
       }
 
       final entryIds = entries.map((entry) => entry.userId).toSet();
 
       if (entryIds.length != entries.length) {
         throw const LeaderboardFailure(
-          'Leaderboard mengandungi peserta berulang.',
+          'Leaderboard mengandungi '
+          'peserta berulang.',
         );
       }
 
@@ -74,17 +89,19 @@ class SupabaseLeaderboardRepository implements LeaderboardRepository {
 
       if (ranks.length != entries.length) {
         throw const LeaderboardFailure(
-          'Leaderboard mengandungi ranking berulang.',
+          'Leaderboard mengandungi '
+          'ranking berulang.',
         );
       }
 
-      final currentUserCount = entries
-          .where((entry) => entry.isCurrentUser)
-          .length;
+      final currentUserCount = entries.where((entry) {
+        return entry.isCurrentUser;
+      }).length;
 
       if (currentUserCount != 1) {
         throw const LeaderboardFailure(
-          'Kedudukan pengguna semasa tidak dapat dikenal pasti.',
+          'Kedudukan pengguna semasa '
+          'tidak dapat dikenal pasti.',
         );
       }
 
@@ -99,7 +116,10 @@ class SupabaseLeaderboardRepository implements LeaderboardRepository {
       );
 
       if (participantCount < entries.length) {
-        throw const LeaderboardFailure('Jumlah peserta leaderboard tidak sah.');
+        throw const LeaderboardFailure(
+          'Jumlah peserta leaderboard '
+          'tidak sah.',
+        );
       }
 
       return LeaderboardSnapshot(
@@ -110,12 +130,15 @@ class SupabaseLeaderboardRepository implements LeaderboardRepository {
       );
     } on LeaderboardFailure {
       rethrow;
+    } on NetworkRequestTimeoutFailure catch (error) {
+      throw LeaderboardFailure(error.message);
     } on PostgrestException catch (error) {
       throw LeaderboardFailure(_mapPostgrestMessage(error.message));
     } catch (_) {
       throw const LeaderboardFailure(
-        'Leaderboard tidak dapat dimuatkan. '
-        'Semak sambungan Internet anda.',
+        'Leaderboard tidak dapat '
+        'dimuatkan. Semak sambungan '
+        'Internet anda.',
       );
     }
   }
@@ -123,7 +146,8 @@ class SupabaseLeaderboardRepository implements LeaderboardRepository {
   Map<String, dynamic> _readResponseMap(Object? response) {
     if (response is! Map) {
       throw const LeaderboardFailure(
-        'Response leaderboard daripada server tidak sah.',
+        'Response leaderboard daripada '
+        'server tidak sah.',
       );
     }
 
@@ -151,7 +175,8 @@ class SupabaseLeaderboardRepository implements LeaderboardRepository {
     }
 
     throw const LeaderboardFailure(
-      'Tempoh leaderboard daripada server tidak sah.',
+      'Tempoh leaderboard daripada '
+      'server tidak sah.',
     );
   }
 
@@ -159,7 +184,10 @@ class SupabaseLeaderboardRepository implements LeaderboardRepository {
     final value = json[key];
 
     if (value is! String || value.trim().isEmpty) {
-      throw LeaderboardFailure('Data $key daripada server tidak sah.');
+      throw LeaderboardFailure(
+        'Data $key daripada server '
+        'tidak sah.',
+      );
     }
 
     return value.trim();
@@ -173,15 +201,18 @@ class SupabaseLeaderboardRepository implements LeaderboardRepository {
     final value = json[key];
 
     if (value is! num) {
-      throw LeaderboardFailure('Data $key daripada server tidak sah.');
+      throw LeaderboardFailure(
+        'Data $key daripada server '
+        'tidak sah.',
+      );
     }
 
     final result = value.toInt();
 
     if (result < minimum) {
       throw LeaderboardFailure(
-        'Data $key daripada server berada '
-        'di luar julat yang dibenarkan.',
+        'Data $key daripada server '
+        'berada di luar julat.',
       );
     }
 
@@ -200,15 +231,18 @@ class SupabaseLeaderboardRepository implements LeaderboardRepository {
     }
 
     if (value is! num) {
-      throw LeaderboardFailure('Data $key daripada server tidak sah.');
+      throw LeaderboardFailure(
+        'Data $key daripada server '
+        'tidak sah.',
+      );
     }
 
     final result = value.toInt();
 
     if (result < minimum) {
       throw LeaderboardFailure(
-        'Data $key daripada server berada '
-        'di luar julat yang dibenarkan.',
+        'Data $key daripada server '
+        'berada di luar julat.',
       );
     }
 
@@ -219,7 +253,10 @@ class SupabaseLeaderboardRepository implements LeaderboardRepository {
     final value = json[key];
 
     if (value is! bool) {
-      throw LeaderboardFailure('Data $key daripada server tidak sah.');
+      throw LeaderboardFailure(
+        'Data $key daripada server '
+        'tidak sah.',
+      );
     }
 
     return value;
@@ -231,7 +268,10 @@ class SupabaseLeaderboardRepository implements LeaderboardRepository {
     final parsedValue = DateTime.tryParse(rawValue);
 
     if (parsedValue == null) {
-      throw LeaderboardFailure('Tarikh $key daripada server tidak sah.');
+      throw LeaderboardFailure(
+        'Tarikh $key daripada server '
+        'tidak sah.',
+      );
     }
 
     return parsedValue;
@@ -246,25 +286,38 @@ class SupabaseLeaderboardRepository implements LeaderboardRepository {
     }
 
     if (message.contains('profile was not found')) {
-      return 'Profil pengguna tidak ditemui.';
+      return 'Profil pengguna '
+          'tidak ditemui.';
     }
 
     if (message.contains('progress was not found')) {
-      return 'Progress pengguna tidak ditemui.';
+      return 'Progress pengguna '
+          'tidak ditemui.';
     }
 
     if (message.contains('period must be')) {
-      return 'Tempoh leaderboard tidak sah.';
+      return 'Tempoh leaderboard '
+          'tidak sah.';
     }
 
     if (message.contains('limit must be')) {
-      return 'Had peserta leaderboard tidak sah.';
+      return 'Had peserta leaderboard '
+          'tidak sah.';
     }
 
     if (message.contains('permission denied') ||
         message.contains('row-level security')) {
-      return 'Anda tidak mempunyai kebenaran '
-          'untuk membuka leaderboard.';
+      return 'Anda tidak mempunyai '
+          'kebenaran untuk membuka '
+          'leaderboard.';
+    }
+
+    if (message.contains('failed host lookup') ||
+        message.contains('connection refused') ||
+        message.contains('network')) {
+      return 'Tidak dapat berhubung '
+          'dengan pelayan leaderboard. '
+          'Semak sambungan Internet anda.';
     }
 
     return 'Operasi leaderboard gagal. '

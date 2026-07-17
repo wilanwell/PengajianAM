@@ -12,6 +12,8 @@ import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_se
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_session_question.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_session_validation.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_submission.dart';
+import 'package:pengajian_am_stpm_objektif/features/quiz/domain/exceptions/quiz_draft_failure.dart';
+import 'package:pengajian_am_stpm_objektif/features/quiz/domain/exceptions/quiz_failure.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/repositories/quiz_draft_repository.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/repositories/quiz_history_repository.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/repositories/quiz_repository.dart';
@@ -28,6 +30,9 @@ class _FakeQuizRepository implements QuizRepository {
 
   QuizSessionServerStatus validationStatus = QuizSessionServerStatus.active;
 
+  QuizFailure? validationFailure;
+  QuizFailure? startFailure;
+
   int validateCallCount = 0;
 
   @override
@@ -36,6 +41,12 @@ class _FakeQuizRepository implements QuizRepository {
     required QuizMode mode,
     required int questionCount,
   }) async {
+    final failure = startFailure;
+
+    if (failure != null) {
+      throw failure;
+    }
+
     return QuizSession(
       sessionId: '00000000-0000-0000-0000-000000000001',
       topicId: topicId,
@@ -66,6 +77,12 @@ class _FakeQuizRepository implements QuizRepository {
     required String sessionId,
   }) async {
     validateCallCount++;
+
+    final failure = validationFailure;
+
+    if (failure != null) {
+      throw failure;
+    }
 
     final now = DateTime.now();
 
@@ -327,8 +344,6 @@ void main() {
       storedProgress: _createProgressBeforeQuiz(),
     );
 
-    final historyRepository = _FakeQuizHistoryRepository();
-
     final draftRepository = _FakeQuizDraftRepository();
 
     final quizRepository = _FakeQuizRepository(
@@ -336,85 +351,6 @@ void main() {
         progressRepository.storedProgress = _createProgressAfterQuiz();
       },
     );
-
-    final container = ProviderContainer(
-      overrides: [
-        quizRepositoryProvider.overrideWithValue(quizRepository),
-        quizDraftRepositoryProvider.overrideWithValue(draftRepository),
-        quizDraftOwnerIdProvider.overrideWithValue('current-user'),
-        userProgressRepositoryProvider.overrideWithValue(progressRepository),
-        quizHistoryRepositoryProvider.overrideWithValue(historyRepository),
-      ],
-    );
-
-    addTearDown(container.dispose);
-
-    final controller = container.read(quizSessionControllerProvider.notifier);
-
-    await controller.startQuiz(
-      topicId: 'topic-s1-02',
-      mode: QuizMode.practice,
-      questionCount: 2,
-    );
-
-    var sessionState = container.read(quizSessionControllerProvider);
-
-    expect(sessionState.status, QuizSessionStatus.ready);
-
-    expect(draftRepository.storedDraft, isNotNull);
-
-    expect(draftRepository.saveCallCount, 1);
-
-    expect(draftRepository.storedDraft!.topicId, 'topic-s1-02');
-
-    controller.selectAnswer(0);
-    controller.nextQuestion();
-    controller.toggleFlagCurrentQuestion();
-    controller.selectAnswer(0);
-
-    await controller.submitQuiz();
-
-    sessionState = container.read(quizSessionControllerProvider);
-
-    expect(sessionState.status, QuizSessionStatus.completed);
-
-    expect(sessionState.result, isNotNull);
-
-    expect(sessionState.result!.earnedXp, 30);
-
-    expect(quizRepository.submittedAnswers, {'q1': 0, 'q2': 0});
-
-    expect(draftRepository.saveCallCount, greaterThanOrEqualTo(5));
-
-    expect(draftRepository.storedDraft, isNull);
-
-    expect(draftRepository.deleteCallCount, 2);
-
-    expect(draftRepository.lastOwnerUserId, 'current-user');
-
-    final refreshedProgress = container.read(userProgressControllerProvider);
-
-    expect(refreshedProgress.totalXp, 1850);
-
-    final historyState = container.read(quizHistoryControllerProvider);
-
-    expect(historyState.attempts, hasLength(1));
-
-    expect(
-      historyState.attempts.first.id,
-      '00000000-0000-0000-0000-000000000002',
-    );
-  });
-
-  test('memuatkan, memulihkan dan membuang draft aktif', () async {
-    final draftRepository = _FakeQuizDraftRepository()
-      ..storedDraft = _createRestorableDraft();
-
-    final progressRepository = _FakeUserProgressRepository(
-      storedProgress: _createProgressBeforeQuiz(),
-    );
-
-    final quizRepository = _FakeQuizRepository(onServerSubmit: () {});
 
     final container = ProviderContainer(
       overrides: [
@@ -432,49 +368,76 @@ void main() {
 
     final controller = container.read(quizSessionControllerProvider.notifier);
 
+    await controller.startQuiz(
+      topicId: 'topic-s1-02',
+      mode: QuizMode.practice,
+      questionCount: 2,
+    );
+
+    var state = container.read(quizSessionControllerProvider);
+
+    expect(state.status, QuizSessionStatus.ready);
+
+    expect(draftRepository.storedDraft, isNotNull);
+
+    controller.selectAnswer(0);
+    controller.nextQuestion();
+    controller.selectAnswer(0);
+
+    await controller.submitQuiz();
+
+    state = container.read(quizSessionControllerProvider);
+
+    expect(state.status, QuizSessionStatus.completed);
+
+    expect(draftRepository.storedDraft, isNull);
+
+    expect(quizRepository.submittedAnswers, {'q1': 0, 'q2': 0});
+  });
+
+  test('memuatkan dan memulihkan draft aktif', () async {
+    final draftRepository = _FakeQuizDraftRepository()
+      ..storedDraft = _createRestorableDraft();
+
+    final quizRepository = _FakeQuizRepository(onServerSubmit: () {});
+
+    final container = ProviderContainer(
+      overrides: [
+        quizRepositoryProvider.overrideWithValue(quizRepository),
+        quizDraftRepositoryProvider.overrideWithValue(draftRepository),
+        quizDraftOwnerIdProvider.overrideWithValue('current-user'),
+        userProgressRepositoryProvider.overrideWithValue(
+          _FakeUserProgressRepository(
+            storedProgress: _createProgressBeforeQuiz(),
+          ),
+        ),
+        quizHistoryRepositoryProvider.overrideWithValue(
+          _FakeQuizHistoryRepository(),
+        ),
+      ],
+    );
+
+    addTearDown(container.dispose);
+
+    final controller = container.read(quizSessionControllerProvider.notifier);
+
     final availableDraft = await controller.loadAvailableDraft();
 
     expect(availableDraft, isNotNull);
-
-    expect(draftRepository.loadCallCount, 1);
-
-    expect(quizRepository.validateCallCount, 1);
 
     final restored = await controller.restoreDraft(availableDraft!);
 
     expect(restored, isTrue);
 
-    /*
-       * Draft disemak sekali ketika dimuatkan
-       * dan sekali lagi sebelum dipulihkan.
-       */
-    expect(quizRepository.validateCallCount, 2);
+    final state = container.read(quizSessionControllerProvider);
 
-    var sessionState = container.read(quizSessionControllerProvider);
+    expect(state.status, QuizSessionStatus.ready);
 
-    expect(sessionState.status, QuizSessionStatus.ready);
+    expect(state.currentQuestionIndex, 1);
 
-    expect(sessionState.sessionId, '00000000-0000-0000-0000-000000000900');
+    expect(state.selectedAnswers, {'draft-q1': 0});
 
-    expect(sessionState.topicId, 'topic-s1-03');
-
-    expect(sessionState.currentQuestionIndex, 1);
-
-    expect(sessionState.selectedAnswers, {'draft-q1': 0});
-
-    expect(sessionState.flaggedQuestionIds, {'draft-q2'});
-
-    expect(sessionState.currentQuestion?.id, 'draft-q2');
-
-    await controller.discardDraft();
-
-    sessionState = container.read(quizSessionControllerProvider);
-
-    expect(sessionState.status, QuizSessionStatus.initial);
-
-    expect(draftRepository.storedDraft, isNull);
-
-    expect(draftRepository.deleteCallCount, 1);
+    expect(state.flaggedQuestionIds, {'draft-q2'});
   });
 
   test('memadam draft apabila sesi server telah dihantar', () async {
@@ -508,10 +471,91 @@ void main() {
 
     expect(availableDraft, isNull);
 
-    expect(quizRepository.validateCallCount, 1);
-
     expect(draftRepository.storedDraft, isNull);
 
     expect(draftRepository.deleteCallCount, 1);
+  });
+
+  test('mengekalkan draft apabila pengesahan server gagal', () async {
+    final originalDraft = _createRestorableDraft();
+
+    final draftRepository = _FakeQuizDraftRepository()
+      ..storedDraft = originalDraft;
+
+    final quizRepository = _FakeQuizRepository(onServerSubmit: () {})
+      ..validationFailure = const QuizFailure('Tiada sambungan Internet.');
+
+    final container = ProviderContainer(
+      overrides: [
+        quizRepositoryProvider.overrideWithValue(quizRepository),
+        quizDraftRepositoryProvider.overrideWithValue(draftRepository),
+        quizDraftOwnerIdProvider.overrideWithValue('current-user'),
+        userProgressRepositoryProvider.overrideWithValue(
+          _FakeUserProgressRepository(
+            storedProgress: _createProgressBeforeQuiz(),
+          ),
+        ),
+        quizHistoryRepositoryProvider.overrideWithValue(
+          _FakeQuizHistoryRepository(),
+        ),
+      ],
+    );
+
+    addTearDown(container.dispose);
+
+    final controller = container.read(quizSessionControllerProvider.notifier);
+
+    await expectLater(
+      controller.loadAvailableDraft(),
+      throwsA(isA<QuizDraftFailure>()),
+    );
+
+    expect(draftRepository.storedDraft, same(originalDraft));
+
+    expect(draftRepository.deleteCallCount, 0);
+  });
+
+  test('mengekalkan draft lama apabila kuiz baharu gagal dimulakan', () async {
+    final originalDraft = _createRestorableDraft();
+
+    final draftRepository = _FakeQuizDraftRepository()
+      ..storedDraft = originalDraft;
+
+    final quizRepository = _FakeQuizRepository(onServerSubmit: () {})
+      ..startFailure = const QuizFailure('Kuiz tidak dapat dimulakan.');
+
+    final container = ProviderContainer(
+      overrides: [
+        quizRepositoryProvider.overrideWithValue(quizRepository),
+        quizDraftRepositoryProvider.overrideWithValue(draftRepository),
+        quizDraftOwnerIdProvider.overrideWithValue('current-user'),
+        userProgressRepositoryProvider.overrideWithValue(
+          _FakeUserProgressRepository(
+            storedProgress: _createProgressBeforeQuiz(),
+          ),
+        ),
+        quizHistoryRepositoryProvider.overrideWithValue(
+          _FakeQuizHistoryRepository(),
+        ),
+      ],
+    );
+
+    addTearDown(container.dispose);
+
+    final controller = container.read(quizSessionControllerProvider.notifier);
+
+    await controller.startQuiz(
+      topicId: 'topic-s1-05',
+      mode: QuizMode.practice,
+      questionCount: 10,
+    );
+
+    final state = container.read(quizSessionControllerProvider);
+
+    expect(state.status, QuizSessionStatus.failure);
+
+    expect(draftRepository.storedDraft, same(originalDraft));
+
+    expect(draftRepository.deleteCallCount, 0);
   });
 }

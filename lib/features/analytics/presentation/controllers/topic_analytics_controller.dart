@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/network/presentation/providers/network_request_executor_provider.dart';
 import '../../../../core/services/supabase_client_provider.dart';
 import '../../data/repositories/supabase_topic_analytics_repository.dart';
 import '../../domain/exceptions/topic_analytics_failure.dart';
@@ -9,7 +10,10 @@ import 'topic_analytics_state.dart';
 final topicAnalyticsRepositoryProvider = Provider<TopicAnalyticsRepository>((
   ref,
 ) {
-  return SupabaseTopicAnalyticsRepository(ref.read(supabaseClientProvider));
+  return SupabaseTopicAnalyticsRepository(
+    ref.read(supabaseClientProvider),
+    ref.read(networkRequestExecutorProvider),
+  );
 });
 
 final topicAnalyticsControllerProvider =
@@ -55,7 +59,9 @@ class TopicAnalyticsController extends Notifier<TopicAnalyticsState> {
     } catch (_) {
       state = const TopicAnalyticsState(
         status: TopicAnalyticsStatus.failure,
-        errorMessage: 'Analitik prestasi tidak dapat dimuatkan.',
+        errorMessage:
+            'Analitik prestasi tidak dapat '
+            'dimuatkan.',
       );
     }
   }

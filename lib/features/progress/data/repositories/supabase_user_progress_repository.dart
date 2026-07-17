@@ -1,13 +1,16 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/network/domain/exceptions/network_request_timeout_failure.dart';
+import '../../../../core/network/domain/services/network_request_executor.dart';
 import '../../domain/entities/user_progress.dart';
 import '../../domain/exceptions/user_progress_failure.dart';
 import '../../domain/repositories/user_progress_repository.dart';
 
 class SupabaseUserProgressRepository implements UserProgressRepository {
-  const SupabaseUserProgressRepository(this._client);
+  const SupabaseUserProgressRepository(this._client, this._requestExecutor);
 
   final SupabaseClient _client;
+  final NetworkRequestExecutor _requestExecutor;
 
   @override
   Future<UserProgress?> loadProgress() async {
@@ -21,34 +24,55 @@ class SupabaseUserProgressRepository implements UserProgressRepository {
     }
 
     try {
-      final rawProfile = await _client
-          .from('profiles')
-          .select('id, display_name, semester_label, created_at')
-          .eq('id', user.id)
-          .single();
+      final profile = await _requestExecutor.run<Map<String, dynamic>>(
+        request: () async {
+          final response = await _client
+              .from('profiles')
+              .select(
+                'id, display_name, '
+                'semester_label, created_at',
+              )
+              .eq('id', user.id)
+              .single();
 
-      final rawProgress = await _client
-          .from('user_progress')
-          .select(
-            'user_id, total_xp, weekly_xp, monthly_xp, '
-            'completed_quizzes, total_correct_answers, '
-            'total_quiz_questions, highest_score, '
-            'completed_topics, current_streak_days, '
-            'best_streak_days, weekly_answered_questions',
-          )
-          .eq('user_id', user.id)
-          .single();
+          return Map<String, dynamic>.from(response);
+        },
+      );
 
-      final rawTopics = await _client
-          .from('topics')
-          .select('id')
-          .eq('is_active', true);
+      final progress = await _requestExecutor.run<Map<String, dynamic>>(
+        request: () async {
+          final response = await _client
+              .from('user_progress')
+              .select(
+                'user_id, total_xp, weekly_xp, '
+                'monthly_xp, completed_quizzes, '
+                'total_correct_answers, '
+                'total_quiz_questions, '
+                'highest_score, completed_topics, '
+                'current_streak_days, '
+                'best_streak_days, '
+                'weekly_answered_questions',
+              )
+              .eq('user_id', user.id)
+              .single();
 
-      final profile = Map<String, dynamic>.from(rawProfile);
+          return Map<String, dynamic>.from(response);
+        },
+      );
 
-      final progress = Map<String, dynamic>.from(rawProgress);
+      final activeTopics = await _requestExecutor
+          .run<List<Map<String, dynamic>>>(
+            request: () async {
+              final response = await _client
+                  .from('topics')
+                  .select('id')
+                  .eq('is_active', true);
 
-      final totalTopics = rawTopics.length;
+              return List<Map<String, dynamic>>.from(response);
+            },
+          );
+
+      final totalTopics = activeTopics.length;
 
       final storedCompletedTopics = _readInteger(progress, 'completed_topics');
 
@@ -79,12 +103,15 @@ class SupabaseUserProgressRepository implements UserProgressRepository {
       );
     } on UserProgressFailure {
       rethrow;
+    } on NetworkRequestTimeoutFailure catch (error) {
+      throw UserProgressFailure(error.message);
     } on PostgrestException catch (error) {
       throw UserProgressFailure(_mapPostgrestMessage(error.message));
     } catch (_) {
       throw const UserProgressFailure(
-        'Progress pengguna tidak dapat dimuatkan. '
-        'Semak sambungan Internet anda.',
+        'Progress pengguna tidak dapat '
+        'dimuatkan. Semak sambungan '
+        'Internet anda.',
       );
     }
   }
@@ -97,28 +124,62 @@ class SupabaseUserProgressRepository implements UserProgressRepository {
       throw const UserProgressFailure('Sesi pengguna tidak tersedia.');
     }
 
+    final normalizedDisplayName = progress.displayName.trim();
+
+    if (normalizedDisplayName.length < 2 || normalizedDisplayName.length > 30) {
+      throw const UserProgressFailure(
+        'Nama paparan mestilah antara '
+        '2 hingga 30 aksara.',
+      );
+    }
+
     try {
-      await _client
-          .from('profiles')
-          .update({'display_name': progress.displayName.trim()})
-          .eq('id', user.id)
-          .select('display_name')
-          .single();
+      await _requestExecutor.run<Map<String, dynamic>>(
+        request: () async {
+          final response = await _client
+              .from('profiles')
+              .update({'display_name': normalizedDisplayName})
+              .eq('id', user.id)
+              .select('display_name')
+              .single();
+
+          return Map<String, dynamic>.from(response);
+        },
+      );
+    } on UserProgressFailure {
+      rethrow;
+    } on NetworkRequestTimeoutFailure catch (error) {
+      throw UserProgressFailure(error.message);
     } on PostgrestException catch (error) {
       throw UserProgressFailure(_mapPostgrestMessage(error.message));
     } catch (_) {
-      throw const UserProgressFailure('Nama paparan tidak dapat dikemas kini.');
+      throw const UserProgressFailure(
+        'Nama paparan tidak dapat '
+        'dikemas kini. Semak sambungan '
+        'Internet anda.',
+      );
     }
   }
 
   @override
   Future<void> clearProgress() async {
     try {
-      await _client.rpc('reset_my_learning_data');
+      await _requestExecutor.run<Object?>(
+        timeout: const Duration(seconds: 30),
+        request: () {
+          return _client.rpc('reset_my_learning_data');
+        },
+      );
+    } on NetworkRequestTimeoutFailure catch (error) {
+      throw UserProgressFailure(error.message);
     } on PostgrestException catch (error) {
       throw UserProgressFailure(_mapPostgrestMessage(error.message));
     } catch (_) {
-      throw const UserProgressFailure('Data pembelajaran tidak dapat direset.');
+      throw const UserProgressFailure(
+        'Data pembelajaran tidak dapat '
+        'direset. Semak sambungan '
+        'Internet anda.',
+      );
     }
   }
 
@@ -126,7 +187,10 @@ class SupabaseUserProgressRepository implements UserProgressRepository {
     final value = json[key];
 
     if (value is! String || value.trim().isEmpty) {
-      throw UserProgressFailure('Data $key daripada server tidak sah.');
+      throw UserProgressFailure(
+        'Data $key daripada server '
+        'tidak sah.',
+      );
     }
 
     return value.trim();
@@ -136,20 +200,44 @@ class SupabaseUserProgressRepository implements UserProgressRepository {
     final value = json[key];
 
     if (value is! num) {
-      throw UserProgressFailure('Data $key daripada server tidak sah.');
+      throw UserProgressFailure(
+        'Data $key daripada server '
+        'tidak sah.',
+      );
     }
 
-    return value.toInt();
+    final result = value.toInt();
+
+    if (result < 0) {
+      throw UserProgressFailure(
+        'Data $key daripada server '
+        'berada di luar julat.',
+      );
+    }
+
+    return result;
   }
 
   double _readDouble(Map<String, dynamic> json, String key) {
     final value = json[key];
 
     if (value is! num) {
-      throw UserProgressFailure('Data $key daripada server tidak sah.');
+      throw UserProgressFailure(
+        'Data $key daripada server '
+        'tidak sah.',
+      );
     }
 
-    return value.toDouble();
+    final result = value.toDouble();
+
+    if (result < 0 || result > 100) {
+      throw UserProgressFailure(
+        'Data $key daripada server '
+        'berada di luar julat.',
+      );
+    }
+
+    return result;
   }
 
   DateTime _readDateTime(Map<String, dynamic> json, String key) {
@@ -158,7 +246,10 @@ class SupabaseUserProgressRepository implements UserProgressRepository {
     final parsedValue = DateTime.tryParse(rawValue);
 
     if (parsedValue == null) {
-      throw UserProgressFailure('Tarikh $key daripada server tidak sah.');
+      throw UserProgressFailure(
+        'Tarikh $key daripada server '
+        'tidak sah.',
+      );
     }
 
     return parsedValue;
@@ -168,7 +259,10 @@ class SupabaseUserProgressRepository implements UserProgressRepository {
     final rawValue = json[key];
 
     if (rawValue is! List) {
-      throw UserProgressFailure('Data aktiviti mingguan tidak sah.');
+      throw const UserProgressFailure(
+        'Data aktiviti mingguan '
+        'tidak sah.',
+      );
     }
 
     final result = List<int>.filled(7, 0);
@@ -181,7 +275,10 @@ class SupabaseUserProgressRepository implements UserProgressRepository {
       final item = rawValue[index];
 
       if (item is! num) {
-        throw const UserProgressFailure('Data aktiviti mingguan tidak sah.');
+        throw const UserProgressFailure(
+          'Data aktiviti mingguan '
+          'tidak sah.',
+        );
       }
 
       final normalizedValue = item.toInt();
@@ -202,13 +299,26 @@ class SupabaseUserProgressRepository implements UserProgressRepository {
 
     if (message.contains('row-level security') ||
         message.contains('permission denied')) {
-      return 'Anda tidak mempunyai kebenaran '
-          'untuk mengakses data ini.';
+      return 'Anda tidak mempunyai '
+          'kebenaran untuk mengakses '
+          'data ini.';
     }
 
-    if (message.contains('multiple (or no) rows returned')) {
-      return 'Profil atau progress pengguna '
-          'tidak ditemui.';
+    if (message.contains('multiple (or no) rows returned') ||
+        message.contains(
+          'json object requested, '
+          'multiple (or no) rows returned',
+        )) {
+      return 'Profil atau progress '
+          'pengguna tidak ditemui.';
+    }
+
+    if (message.contains('failed host lookup') ||
+        message.contains('connection refused') ||
+        message.contains('network')) {
+      return 'Tidak dapat berhubung '
+          'dengan pelayan progress. '
+          'Semak sambungan Internet anda.';
     }
 
     return 'Operasi progress gagal. '

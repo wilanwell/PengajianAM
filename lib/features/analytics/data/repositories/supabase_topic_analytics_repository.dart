@@ -1,19 +1,26 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/network/domain/exceptions/network_request_timeout_failure.dart';
+import '../../../../core/network/domain/services/network_request_executor.dart';
 import '../../domain/entities/topic_analytics_snapshot.dart';
 import '../../domain/entities/topic_performance.dart';
 import '../../domain/exceptions/topic_analytics_failure.dart';
 import '../../domain/repositories/topic_analytics_repository.dart';
 
 class SupabaseTopicAnalyticsRepository implements TopicAnalyticsRepository {
-  const SupabaseTopicAnalyticsRepository(this._client);
+  const SupabaseTopicAnalyticsRepository(this._client, this._requestExecutor);
 
   final SupabaseClient _client;
+  final NetworkRequestExecutor _requestExecutor;
 
   @override
   Future<TopicAnalyticsSnapshot> fetchAnalytics() async {
     try {
-      final response = await _client.rpc('get_my_topic_analytics');
+      final response = await _requestExecutor.run<Object?>(
+        request: () {
+          return _client.rpc('get_my_topic_analytics');
+        },
+      );
 
       final responseMap = _readResponseMap(response);
 
@@ -21,7 +28,8 @@ class SupabaseTopicAnalyticsRepository implements TopicAnalyticsRepository {
 
       if (rawPerformances is! List) {
         throw const TopicAnalyticsFailure(
-          'Senarai analitik daripada server tidak sah.',
+          'Senarai analitik daripada server '
+          'tidak sah.',
         );
       }
 
@@ -43,7 +51,8 @@ class SupabaseTopicAnalyticsRepository implements TopicAnalyticsRepository {
 
       if (topicIds.length != performances.length) {
         throw const TopicAnalyticsFailure(
-          'Analitik mengandungi topik berulang.',
+          'Analitik mengandungi topik '
+          'berulang.',
         );
       }
 
@@ -73,12 +82,15 @@ class SupabaseTopicAnalyticsRepository implements TopicAnalyticsRepository {
       );
     } on TopicAnalyticsFailure {
       rethrow;
+    } on NetworkRequestTimeoutFailure catch (error) {
+      throw TopicAnalyticsFailure(error.message);
     } on PostgrestException catch (error) {
       throw TopicAnalyticsFailure(_mapPostgrestMessage(error.message));
     } catch (_) {
       throw const TopicAnalyticsFailure(
-        'Analitik prestasi tidak dapat dimuatkan. '
-        'Semak sambungan Internet anda.',
+        'Analitik prestasi tidak dapat '
+        'dimuatkan. Semak sambungan '
+        'Internet anda.',
       );
     }
   }
@@ -118,7 +130,8 @@ class SupabaseTopicAnalyticsRepository implements TopicAnalyticsRepository {
   Map<String, dynamic> _readResponseMap(Object? response) {
     if (response is! Map) {
       throw const TopicAnalyticsFailure(
-        'Response analitik daripada server tidak sah.',
+        'Response analitik daripada server '
+        'tidak sah.',
       );
     }
 
@@ -129,7 +142,10 @@ class SupabaseTopicAnalyticsRepository implements TopicAnalyticsRepository {
     final value = json[key];
 
     if (value is! String || value.trim().isEmpty) {
-      throw TopicAnalyticsFailure('Data $key daripada server tidak sah.');
+      throw TopicAnalyticsFailure(
+        'Data $key daripada server '
+        'tidak sah.',
+      );
     }
 
     return value.trim();
@@ -143,7 +159,10 @@ class SupabaseTopicAnalyticsRepository implements TopicAnalyticsRepository {
     }
 
     if (value is! String) {
-      throw TopicAnalyticsFailure('Data $key daripada server tidak sah.');
+      throw TopicAnalyticsFailure(
+        'Data $key daripada server '
+        'tidak sah.',
+      );
     }
 
     return value.trim();
@@ -157,15 +176,18 @@ class SupabaseTopicAnalyticsRepository implements TopicAnalyticsRepository {
     final value = json[key];
 
     if (value is! num) {
-      throw TopicAnalyticsFailure('Data $key daripada server tidak sah.');
+      throw TopicAnalyticsFailure(
+        'Data $key daripada server '
+        'tidak sah.',
+      );
     }
 
     final result = value.toInt();
 
     if (result < minimum) {
       throw TopicAnalyticsFailure(
-        'Data $key daripada server berada '
-        'di luar julat yang dibenarkan.',
+        'Data $key daripada server '
+        'berada di luar julat.',
       );
     }
 
@@ -181,15 +203,18 @@ class SupabaseTopicAnalyticsRepository implements TopicAnalyticsRepository {
     final value = json[key];
 
     if (value is! num) {
-      throw TopicAnalyticsFailure('Data $key daripada server tidak sah.');
+      throw TopicAnalyticsFailure(
+        'Data $key daripada server '
+        'tidak sah.',
+      );
     }
 
     final result = value.toDouble();
 
     if (result < minimum || result > maximum) {
       throw TopicAnalyticsFailure(
-        'Data $key daripada server berada '
-        'di luar julat yang dibenarkan.',
+        'Data $key daripada server '
+        'berada di luar julat.',
       );
     }
 
@@ -202,7 +227,10 @@ class SupabaseTopicAnalyticsRepository implements TopicAnalyticsRepository {
     final parsedValue = DateTime.tryParse(rawValue);
 
     if (parsedValue == null) {
-      throw TopicAnalyticsFailure('Tarikh $key daripada server tidak sah.');
+      throw TopicAnalyticsFailure(
+        'Tarikh $key daripada server '
+        'tidak sah.',
+      );
     }
 
     return parsedValue;
@@ -218,8 +246,17 @@ class SupabaseTopicAnalyticsRepository implements TopicAnalyticsRepository {
 
     if (message.contains('permission denied') ||
         message.contains('row-level security')) {
-      return 'Anda tidak mempunyai kebenaran '
-          'untuk membuka analitik.';
+      return 'Anda tidak mempunyai '
+          'kebenaran untuk membuka '
+          'analitik.';
+    }
+
+    if (message.contains('failed host lookup') ||
+        message.contains('connection refused') ||
+        message.contains('network')) {
+      return 'Tidak dapat berhubung '
+          'dengan pelayan analitik. '
+          'Semak sambungan Internet anda.';
     }
 
     return 'Operasi analitik gagal. '

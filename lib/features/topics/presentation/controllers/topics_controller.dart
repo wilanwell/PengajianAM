@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/network/presentation/providers/network_request_executor_provider.dart';
 import '../../../../core/services/supabase_client_provider.dart';
 import '../../data/repositories/supabase_topics_repository.dart';
 import '../../domain/exceptions/topics_failure.dart';
@@ -7,7 +8,10 @@ import '../../domain/repositories/topics_repository.dart';
 import 'topics_state.dart';
 
 final topicsRepositoryProvider = Provider<TopicsRepository>((ref) {
-  return SupabaseTopicsRepository(ref.read(supabaseClientProvider));
+  return SupabaseTopicsRepository(
+    ref.read(supabaseClientProvider),
+    ref.read(networkRequestExecutorProvider),
+  );
 });
 
 final topicsControllerProvider =
@@ -48,8 +52,8 @@ class TopicsController extends Notifier<TopicsState> {
       state = const TopicsState(
         status: TopicsStatus.failure,
         errorMessage:
-            'Senarai topik tidak dapat dimuatkan. '
-            'Sila cuba semula.',
+            'Senarai topik tidak dapat '
+            'dimuatkan. Sila cuba semula.',
       );
     }
   }

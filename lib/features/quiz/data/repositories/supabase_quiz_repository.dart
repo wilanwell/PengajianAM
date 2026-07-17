@@ -1,18 +1,21 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/network/domain/exceptions/network_request_timeout_failure.dart';
+import '../../../../core/network/domain/services/network_request_executor.dart';
 import '../../domain/entities/quiz_mode.dart';
 import '../../domain/entities/quiz_result.dart';
 import '../../domain/entities/quiz_session.dart';
 import '../../domain/entities/quiz_session_question.dart';
+import '../../domain/entities/quiz_session_validation.dart';
 import '../../domain/entities/quiz_submission.dart';
 import '../../domain/exceptions/quiz_failure.dart';
 import '../../domain/repositories/quiz_repository.dart';
-import '../../domain/entities/quiz_session_validation.dart';
 
 class SupabaseQuizRepository implements QuizRepository {
-  const SupabaseQuizRepository(this._client);
+  const SupabaseQuizRepository(this._client, this._requestExecutor);
 
   final SupabaseClient _client;
+  final NetworkRequestExecutor _requestExecutor;
 
   @override
   Future<QuizSession> startQuiz({
@@ -21,12 +24,16 @@ class SupabaseQuizRepository implements QuizRepository {
     required int questionCount,
   }) async {
     try {
-      final response = await _client.rpc(
-        'start_quiz',
-        params: {
-          'p_topic_id': topicId,
-          'p_question_count': questionCount,
-          'p_mode': mode.name,
+      final response = await _requestExecutor.run<Object?>(
+        request: () async {
+          return _client.rpc(
+            'start_quiz',
+            params: {
+              'p_topic_id': topicId,
+              'p_question_count': questionCount,
+              'p_mode': mode.name,
+            },
+          );
         },
       );
 
@@ -38,14 +45,20 @@ class SupabaseQuizRepository implements QuizRepository {
       final rawQuestions = responseMap['questions'];
 
       if (rawQuestions is! List) {
-        throw const QuizFailure('Senarai soalan daripada server tidak sah.');
+        throw const QuizFailure(
+          'Senarai soalan daripada server '
+          'tidak sah.',
+        );
       }
 
       final questions = <QuizSessionQuestion>[];
 
       for (final rawQuestion in rawQuestions) {
         if (rawQuestion is! Map) {
-          throw const QuizFailure('Data soalan daripada server tidak sah.');
+          throw const QuizFailure(
+            'Data soalan daripada server '
+            'tidak sah.',
+          );
         }
 
         questions.add(
@@ -53,10 +66,13 @@ class SupabaseQuizRepository implements QuizRepository {
         );
       }
 
-      final questionCountValue = _readInt(responseMap, 'questionCount');
+      final responseQuestionCount = _readInt(responseMap, 'questionCount');
 
-      if (questions.length != questionCountValue) {
-        throw const QuizFailure('Jumlah soalan daripada server tidak lengkap.');
+      if (questions.length != responseQuestionCount) {
+        throw const QuizFailure(
+          'Jumlah soalan daripada server '
+          'tidak lengkap.',
+        );
       }
 
       final uniqueQuestionIds = questions
@@ -64,21 +80,47 @@ class SupabaseQuizRepository implements QuizRepository {
           .toSet();
 
       if (uniqueQuestionIds.length != questions.length) {
-        throw const QuizFailure('Server mengembalikan soalan yang berulang.');
+        throw const QuizFailure(
+          'Server mengembalikan soalan '
+          'yang berulang.',
+        );
+      }
+
+      final responseTopicId = _readString(responseMap, 'topicId');
+
+      if (responseTopicId != topicId) {
+        throw const QuizFailure(
+          'Topik kuiz daripada server '
+          'tidak sepadan.',
+        );
+      }
+
+      final responseMode = _readQuizMode(responseMap, 'mode');
+
+      if (responseMode != mode) {
+        throw const QuizFailure(
+          'Mode kuiz daripada server '
+          'tidak sepadan.',
+        );
       }
 
       return QuizSession(
         sessionId: _readString(responseMap, 'sessionId'),
-        topicId: _readString(responseMap, 'topicId'),
-        mode: _readQuizMode(responseMap, 'mode'),
-        questionCount: questionCountValue,
+        topicId: responseTopicId,
+        mode: responseMode,
+        questionCount: responseQuestionCount,
         expiresAt: _readDateTime(responseMap, 'expiresAt'),
         questions: List<QuizSessionQuestion>.unmodifiable(questions),
       );
     } on QuizFailure {
       rethrow;
+    } on NetworkRequestTimeoutFailure catch (error) {
+      throw QuizFailure(error.message);
     } on FormatException {
-      throw const QuizFailure('Format kuiz daripada server tidak sah.');
+      throw const QuizFailure(
+        'Format kuiz daripada server '
+        'tidak sah.',
+      );
     } on PostgrestException catch (error) {
       throw QuizFailure(_mapPostgrestMessage(error.message));
     } catch (_) {
@@ -100,9 +142,13 @@ class SupabaseQuizRepository implements QuizRepository {
     }
 
     try {
-      final response = await _client.rpc(
-        'get_my_quiz_session_status',
-        params: {'p_session_id': normalizedSessionId},
+      final response = await _requestExecutor.run<Object?>(
+        request: () async {
+          return _client.rpc(
+            'get_my_quiz_session_status',
+            params: {'p_session_id': normalizedSessionId},
+          );
+        },
       );
 
       final responseMap = _readResponseMap(
@@ -122,6 +168,8 @@ class SupabaseQuizRepository implements QuizRepository {
       return validation;
     } on QuizFailure {
       rethrow;
+    } on NetworkRequestTimeoutFailure catch (error) {
+      throw QuizFailure(error.message);
     } on FormatException {
       throw const QuizFailure(
         'Format pengesahan sesi kuiz '
@@ -131,8 +179,9 @@ class SupabaseQuizRepository implements QuizRepository {
       throw QuizFailure(_mapPostgrestMessage(error.message));
     } catch (_) {
       throw const QuizFailure(
-        'Status sesi kuiz tidak dapat disemak. '
-        'Semak sambungan Internet anda.',
+        'Status sesi kuiz tidak dapat '
+        'disemak. Semak sambungan '
+        'Internet anda.',
       );
     }
   }
@@ -144,6 +193,12 @@ class SupabaseQuizRepository implements QuizRepository {
     required Duration elapsedTime,
     required bool autoSubmitted,
   }) async {
+    final normalizedSessionId = sessionId.trim();
+
+    if (normalizedSessionId.isEmpty) {
+      throw const QuizFailure('ID sesi kuiz tidak sah.');
+    }
+
     try {
       final answerPayload = [
         for (final entry in selectedAnswers.entries)
@@ -152,13 +207,22 @@ class SupabaseQuizRepository implements QuizRepository {
 
       final elapsedSeconds = _normalizeElapsedSeconds(elapsedTime);
 
-      final response = await _client.rpc(
-        'submit_quiz_attempt',
-        params: {
-          'p_session_id': sessionId,
-          'p_answers': answerPayload,
-          'p_elapsed_seconds': elapsedSeconds,
-          'p_auto_submitted': autoSubmitted,
+      final response = await _requestExecutor.run<Object?>(
+        /*
+         * Submission melibatkan beberapa operasi
+         * database dalam satu transaksi.
+         */
+        timeout: const Duration(seconds: 30),
+        request: () async {
+          return _client.rpc(
+            'submit_quiz_attempt',
+            params: {
+              'p_session_id': normalizedSessionId,
+              'p_answers': answerPayload,
+              'p_elapsed_seconds': elapsedSeconds,
+              'p_auto_submitted': autoSubmitted,
+            },
+          );
         },
       );
 
@@ -169,14 +233,25 @@ class SupabaseQuizRepository implements QuizRepository {
 
       final result = QuizResult.fromJson(responseMap);
 
+      final earnedXp = _readInt(responseMap, 'earnedXp');
+
+      if (result.earnedXp != earnedXp) {
+        throw const QuizFailure(
+          'Nilai XP keputusan kuiz '
+          'tidak sepadan.',
+        );
+      }
+
       return QuizSubmission(
         attemptId: _readString(responseMap, 'attemptId'),
-        earnedXp: _readInt(responseMap, 'earnedXp'),
+        earnedXp: earnedXp,
         completedAt: _readDateTime(responseMap, 'completedAt'),
         result: result,
       );
     } on QuizFailure {
       rethrow;
+    } on NetworkRequestTimeoutFailure catch (error) {
+      throw QuizFailure(error.message);
     } on FormatException {
       throw const QuizFailure(
         'Format keputusan kuiz daripada '
@@ -197,7 +272,10 @@ class SupabaseQuizRepository implements QuizRepository {
     required String operationName,
   }) {
     if (response is! Map) {
-      throw QuizFailure('Response $operationName tidak sah.');
+      throw QuizFailure(
+        'Response $operationName '
+        'daripada server tidak sah.',
+      );
     }
 
     return Map<String, dynamic>.from(response);
@@ -207,7 +285,10 @@ class SupabaseQuizRepository implements QuizRepository {
     final value = json[key];
 
     if (value is! String || value.trim().isEmpty) {
-      throw QuizFailure('Data $key daripada server tidak sah.');
+      throw QuizFailure(
+        'Data $key daripada server '
+        'tidak sah.',
+      );
     }
 
     return value.trim();
@@ -217,7 +298,10 @@ class SupabaseQuizRepository implements QuizRepository {
     final value = json[key];
 
     if (value is! num) {
-      throw QuizFailure('Data $key daripada server tidak sah.');
+      throw QuizFailure(
+        'Data $key daripada server '
+        'tidak sah.',
+      );
     }
 
     return value.toInt();
@@ -229,7 +313,10 @@ class SupabaseQuizRepository implements QuizRepository {
     final parsedValue = DateTime.tryParse(rawValue);
 
     if (parsedValue == null) {
-      throw QuizFailure('Tarikh $key daripada server tidak sah.');
+      throw QuizFailure(
+        'Tarikh $key daripada server '
+        'tidak sah.',
+      );
     }
 
     return parsedValue;
@@ -244,7 +331,10 @@ class SupabaseQuizRepository implements QuizRepository {
       }
     }
 
-    throw const QuizFailure('Mode kuiz daripada server tidak sah.');
+    throw const QuizFailure(
+      'Mode kuiz daripada server '
+      'tidak sah.',
+    );
   }
 
   int _normalizeElapsedSeconds(Duration duration) {
@@ -275,11 +365,13 @@ class SupabaseQuizRepository implements QuizRepository {
     }
 
     if (message.contains('selected topic is not available')) {
-      return 'Topik yang dipilih tidak tersedia.';
+      return 'Topik yang dipilih '
+          'tidak tersedia.';
     }
 
     if (message.contains('already been submitted')) {
-      return 'Kuiz ini telah dihantar sebelumnya.';
+      return 'Kuiz ini telah dihantar '
+          'sebelumnya.';
     }
 
     if (message.contains('session has expired')) {
@@ -292,22 +384,35 @@ class SupabaseQuizRepository implements QuizRepository {
     }
 
     if (message.contains('belongs to another user')) {
-      return 'Sesi kuiz ini tidak sah untuk '
-          'akaun semasa.';
+      return 'Sesi kuiz ini tidak sah '
+          'untuk akaun semasa.';
     }
 
     if (message.contains('outside this session')) {
-      return 'Jawapan mengandungi soalan yang '
-          'bukan daripada sesi ini.';
+      return 'Jawapan mengandungi soalan '
+          'yang bukan daripada sesi ini.';
     }
 
     if (message.contains('duplicate answers')) {
-      return 'Terdapat jawapan berganda untuk '
-          'soalan yang sama.';
+      return 'Terdapat jawapan berganda '
+          'untuk soalan yang sama.';
     }
 
     if (message.contains('selected option index')) {
-      return 'Salah satu pilihan jawapan tidak sah.';
+      return 'Salah satu pilihan jawapan '
+          'tidak sah.';
+    }
+
+    if (message.contains('session_id is required')) {
+      return 'ID sesi kuiz tidak sah.';
+    }
+
+    if (message.contains('failed host lookup') ||
+        message.contains('connection refused') ||
+        message.contains('network')) {
+      return 'Tidak dapat berhubung dengan '
+          'pelayan kuiz. Semak sambungan '
+          'Internet anda.';
     }
 
     return 'Operasi kuiz gagal. '

@@ -2,12 +2,14 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/network/presentation/providers/network_request_executor_provider.dart';
 import '../../../../core/services/supabase_client_provider.dart';
 import '../../../progress/presentation/controllers/user_progress_controller.dart';
 import '../../data/repositories/shared_preferences_quiz_draft_repository.dart';
 import '../../data/repositories/supabase_quiz_repository.dart';
 import '../../domain/entities/quiz_draft.dart';
 import '../../domain/entities/quiz_mode.dart';
+import '../../domain/exceptions/quiz_draft_failure.dart';
 import '../../domain/exceptions/quiz_failure.dart';
 import '../../domain/repositories/quiz_draft_repository.dart';
 import '../../domain/repositories/quiz_repository.dart';
@@ -15,15 +17,16 @@ import 'quiz_history_controller.dart';
 import 'quiz_session_state.dart';
 
 final quizRepositoryProvider = Provider<QuizRepository>((ref) {
-  return SupabaseQuizRepository(ref.read(supabaseClientProvider));
+  return SupabaseQuizRepository(
+    ref.read(supabaseClientProvider),
+    ref.read(networkRequestExecutorProvider),
+  );
 });
 
 final quizDraftRepositoryProvider = Provider<QuizDraftRepository>((ref) {
   return const SharedPreferencesQuizDraftRepository();
 });
 
-/// Provider ini diasingkan supaya unit test boleh
-/// menggunakan ID pengguna palsu tanpa Supabase sebenar.
 final quizDraftOwnerIdProvider = Provider<String?>((ref) {
   return ref.read(supabaseClientProvider).auth.currentUser?.id;
 });
@@ -39,8 +42,6 @@ class QuizSessionController extends Notifier<QuizSessionState> {
   DateTime? _startedAt;
   DateTime? _examDeadlineAt;
 
-  /// Semua operasi save disusun supaya save lama
-  /// tidak menimpa save yang lebih baharu.
   Future<void> _draftOperationQueue = Future<void>.value();
 
   QuizRepository get _repository {
@@ -61,10 +62,6 @@ class QuizSessionController extends Notifier<QuizSessionState> {
 
       return userId.trim();
     } catch (_) {
-      /*
-       * Unit test lama yang tidak menyediakan
-       * Supabase masih boleh berjalan.
-       */
       return null;
     }
   }
@@ -84,11 +81,12 @@ class QuizSessionController extends Notifier<QuizSessionState> {
     _cancelTimer();
 
     /*
-     * Memulakan kuiz baharu bermaksud draft lama
-     * tidak lagi diperlukan.
+     * Draft lama tidak dipadamkan sebelum
+     * Supabase berjaya mencipta sesi baharu.
+     *
+     * Jika request gagal kerana offline,
+     * draft lama masih kekal pada peranti.
      */
-    await _deleteDraftSafely();
-
     _startedAt = null;
     _examDeadlineAt = null;
 
@@ -142,9 +140,11 @@ class QuizSessionController extends Notifier<QuizSessionState> {
       );
 
       /*
-       * Pastikan draft pertama disimpan sebelum
-       * pengguna mula menjawab.
+       * Sesi baharu sudah berjaya diwujudkan.
+       * Sekarang barulah draft lama boleh
+       * dipadamkan dan digantikan.
        */
+      await _deleteDraftSafely();
       await _saveCurrentDraftSafely();
 
       if (remainingSeconds != null) {
@@ -248,8 +248,6 @@ class QuizSessionController extends Notifier<QuizSessionState> {
     goToQuestion(state.currentQuestionIndex + 1);
   }
 
-  /// Membaca draft pengguna semasa tanpa
-  /// mengubah state kuiz.
   Future<QuizDraft?> loadAvailableDraft() async {
     final ownerUserId = _draftOwnerUserId;
 
@@ -257,13 +255,28 @@ class QuizSessionController extends Notifier<QuizSessionState> {
       return null;
     }
 
+    QuizDraft? draft;
+
     try {
-      final draft = await _draftRepository.loadDraft(ownerUserId: ownerUserId);
+      draft = await _draftRepository.loadDraft(ownerUserId: ownerUserId);
+    } on QuizDraftFailure {
+      rethrow;
+    } catch (_) {
+      throw const QuizDraftFailure(
+        'Draft kuiz tidak dapat dibaca '
+        'daripada peranti.',
+      );
+    }
 
-      if (draft == null) {
-        return null;
-      }
+    /*
+     * Null hanya bermaksud draft memang
+     * tidak wujud.
+     */
+    if (draft == null) {
+      return null;
+    }
 
+    try {
       final canResume = await _isDraftResumableOnServer(draft);
 
       if (!canResume) {
@@ -273,17 +286,27 @@ class QuizSessionController extends Notifier<QuizSessionState> {
       }
 
       return draft;
-    } catch (_) {
+    } on QuizFailure catch (error) {
       /*
-     * Draft tidak dipadamkan apabila kegagalan
-     * berpunca daripada Internet atau server.
-     */
-      return null;
+       * Kegagalan rangkaian tidak memadamkan
+       * draft dan tidak dianggap sebagai null.
+       */
+      throw QuizDraftFailure(
+        '${error.message} '
+        'Sesi tersimpan anda masih selamat '
+        'pada peranti.',
+      );
+    } on QuizDraftFailure {
+      rethrow;
+    } catch (_) {
+      throw const QuizDraftFailure(
+        'Sesi kuiz tersimpan tidak dapat '
+        'disahkan sekarang. Draft anda masih '
+        'selamat pada peranti.',
+      );
     }
   }
 
-  /// Memulihkan state daripada draft yang dipilih
-  /// oleh pengguna.
   Future<bool> restoreDraft(QuizDraft draft) async {
     final ownerUserId = _draftOwnerUserId;
 
@@ -299,13 +322,20 @@ class QuizSessionController extends Notifier<QuizSessionState> {
 
         return false;
       }
+    } on QuizFailure catch (error) {
+      throw QuizDraftFailure(
+        '${error.message} '
+        'Sesi tersimpan anda masih selamat '
+        'pada peranti.',
+      );
+    } on QuizDraftFailure {
+      rethrow;
     } catch (_) {
-      /*
-     * Draft dikekalkan apabila server tidak
-     * dapat dihubungi, tetapi sesi tidak
-     * dipulihkan.
-     */
-      return false;
+      throw const QuizDraftFailure(
+        'Sesi kuiz tersimpan tidak dapat '
+        'disahkan sekarang. Draft anda masih '
+        'selamat pada peranti.',
+      );
     }
 
     final now = DateTime.now();
@@ -344,23 +374,10 @@ class QuizSessionController extends Notifier<QuizSessionState> {
     return true;
   }
 
-  /// Menyimpan keadaan terkini sebelum pengguna
-  /// keluar daripada halaman kuiz.
-  ///
-  /// Draft dikekalkan supaya boleh disambung
-  /// apabila pengguna kembali.
   Future<void> preserveDraftAndReset() async {
     _cancelTimer();
 
-    /*
-   * Tunggu autosave terdahulu selesai.
-   */
     await _draftOperationQueue;
-
-    /*
-   * Simpan snapshot terakhir untuk memastikan
-   * jawapan dan kedudukan terkini tidak hilang.
-   */
     await _saveCurrentDraftSafely();
 
     _startedAt = null;
@@ -369,8 +386,6 @@ class QuizSessionController extends Notifier<QuizSessionState> {
     state = const QuizSessionState();
   }
 
-  /// Digunakan apabila pengguna memilih untuk
-  /// membuang sesi lama atau keluar daripada kuiz.
   Future<void> discardDraft() async {
     _cancelTimer();
 
@@ -414,11 +429,6 @@ class QuizSessionController extends Notifier<QuizSessionState> {
         autoSubmitted: autoSubmitted,
       );
 
-      /*
-       * Tunggu semua autosave selesai dahulu,
-       * kemudian padam draft supaya save lama
-       * tidak mencipta semula draft selepas submit.
-       */
       await _deleteDraftSafely();
 
       try {
@@ -429,11 +439,7 @@ class QuizSessionController extends Notifier<QuizSessionState> {
               earnedXp: submission.earnedXp,
             );
       } catch (_) {
-        /*
-         * Keputusan dan progress sudah disimpan
-         * oleh server. Kegagalan refresh UI tidak
-         * membatalkan submission.
-         */
+        // Progress sudah disimpan oleh server.
       }
 
       try {
@@ -446,10 +452,7 @@ class QuizSessionController extends Notifier<QuizSessionState> {
               result: submission.result,
             );
       } catch (_) {
-        /*
-         * Attempt sudah tersimpan di Supabase.
-         * Cache state sejarah boleh dimuatkan semula.
-         */
+        // Attempt sudah disimpan oleh server.
       }
 
       state = state.copyWith(
@@ -478,8 +481,6 @@ class QuizSessionController extends Notifier<QuizSessionState> {
     }
   }
 
-  /// Reset state sahaja. Gunakan discardDraft()
-  /// apabila draft juga perlu dipadamkan.
   void reset() {
     _cancelTimer();
 
@@ -518,12 +519,6 @@ class QuizSessionController extends Notifier<QuizSessionState> {
       }
 
       state = state.copyWith(remainingSeconds: nextValue);
-
-      /*
-         * Timer tidak disimpan setiap saat.
-         * Draft menyimpan examDeadlineAt, jadi masa
-         * baki boleh dikira semula ketika restore.
-         */
     });
   }
 
@@ -603,10 +598,7 @@ class QuizSessionController extends Notifier<QuizSessionState> {
     try {
       await _draftRepository.saveDraft(ownerUserId: ownerUserId, draft: draft);
     } catch (_) {
-      /*
-       * Autosave tidak boleh menghentikan
-       * pengguna daripada menjawab kuiz.
-       */
+      // Autosave tidak menghentikan kuiz.
     }
   }
 
@@ -626,10 +618,7 @@ class QuizSessionController extends Notifier<QuizSessionState> {
           draft: draft,
         );
       } catch (_) {
-        /*
-           * Operasi autosave gagal secara senyap.
-           * Queue tetap diteruskan untuk save baharu.
-           */
+        // Queue diteruskan untuk save baharu.
       }
     });
   }
@@ -642,18 +631,11 @@ class QuizSessionController extends Notifier<QuizSessionState> {
     }
 
     try {
-      /*
-       * Pastikan semua autosave terdahulu selesai
-       * sebelum delete dijalankan.
-       */
       await _draftOperationQueue;
 
       await _draftRepository.deleteDraft(ownerUserId: ownerUserId);
     } catch (_) {
-      /*
-       * Keputusan kuiz tidak patut dianggap gagal
-       * hanya kerana local draft gagal dipadamkan.
-       */
+      // Kegagalan draft tidak membatalkan kuiz.
     }
   }
 

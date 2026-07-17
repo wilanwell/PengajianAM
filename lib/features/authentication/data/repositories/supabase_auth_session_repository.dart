@@ -1,13 +1,17 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/network/domain/exceptions/network_request_timeout_failure.dart';
+import '../../../../core/network/domain/services/network_request_executor.dart';
 import '../../domain/entities/auth_registration_result.dart';
 import '../../domain/entities/auth_session.dart';
 import '../../domain/exceptions/authentication_failure.dart';
 import '../../domain/repositories/auth_session_repository.dart';
 
 class SupabaseAuthSessionRepository implements AuthSessionRepository {
-  const SupabaseAuthSessionRepository(this._client);
+  const SupabaseAuthSessionRepository(this._client, this._requestExecutor);
+
   final SupabaseClient _client;
+  final NetworkRequestExecutor _requestExecutor;
 
   @override
   AuthSession? get currentSession {
@@ -27,9 +31,13 @@ class SupabaseAuthSessionRepository implements AuthSessionRepository {
     required String password,
   }) async {
     try {
-      final response = await _client.auth.signInWithPassword(
-        email: email.trim(),
-        password: password,
+      final response = await _requestExecutor.run<AuthResponse>(
+        request: () {
+          return _client.auth.signInWithPassword(
+            email: email.trim(),
+            password: password,
+          );
+        },
       );
 
       final session = _mapSession(response.session);
@@ -43,6 +51,8 @@ class SupabaseAuthSessionRepository implements AuthSessionRepository {
       return session;
     } on AuthenticationFailure {
       rethrow;
+    } on NetworkRequestTimeoutFailure catch (error) {
+      throw AuthenticationFailure(error.message);
     } on AuthException catch (error) {
       throw AuthenticationFailure(_mapAuthErrorMessage(error.message));
     } catch (_) {
@@ -62,10 +72,14 @@ class SupabaseAuthSessionRepository implements AuthSessionRepository {
     try {
       final normalizedEmail = email.trim().toLowerCase();
 
-      final response = await _client.auth.signUp(
-        email: normalizedEmail,
-        password: password,
-        data: {'display_name': displayName.trim()},
+      final response = await _requestExecutor.run<AuthResponse>(
+        request: () {
+          return _client.auth.signUp(
+            email: normalizedEmail,
+            password: password,
+            data: {'display_name': displayName.trim()},
+          );
+        },
       );
 
       final user = response.user;
@@ -81,6 +95,8 @@ class SupabaseAuthSessionRepository implements AuthSessionRepository {
       );
     } on AuthenticationFailure {
       rethrow;
+    } on NetworkRequestTimeoutFailure catch (error) {
+      throw AuthenticationFailure(error.message);
     } on AuthException catch (error) {
       throw AuthenticationFailure(_mapAuthErrorMessage(error.message));
     } catch (_) {
@@ -94,7 +110,13 @@ class SupabaseAuthSessionRepository implements AuthSessionRepository {
   @override
   Future<void> signOut() async {
     try {
-      await _client.auth.signOut();
+      await _requestExecutor.run<void>(
+        request: () {
+          return _client.auth.signOut();
+        },
+      );
+    } on NetworkRequestTimeoutFailure catch (error) {
+      throw AuthenticationFailure(error.message);
     } on AuthException catch (error) {
       throw AuthenticationFailure(_mapAuthErrorMessage(error.message));
     } catch (_) {
@@ -142,9 +164,18 @@ class SupabaseAuthSessionRepository implements AuthSessionRepository {
     }
 
     if (message.contains('signup is disabled')) {
-      return 'Pendaftaran akaun sedang dinyahaktifkan.';
+      return 'Pendaftaran akaun sedang '
+          'dinyahaktifkan.';
     }
 
-    return 'Authentication gagal. Sila cuba semula.';
+    if (message.contains('network request failed') ||
+        message.contains('failed host lookup') ||
+        message.contains('connection refused')) {
+      return 'Tidak dapat berhubung dengan pelayan. '
+          'Semak sambungan Internet anda.';
+    }
+
+    return 'Authentication gagal. '
+        'Sila cuba semula.';
   }
 }
