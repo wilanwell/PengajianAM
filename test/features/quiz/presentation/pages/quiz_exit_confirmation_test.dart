@@ -5,6 +5,7 @@ import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_dr
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_mode.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_session.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_session_question.dart';
+import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_session_validation.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_submission.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/repositories/quiz_draft_repository.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/repositories/quiz_repository.dart';
@@ -35,6 +36,25 @@ class _FakeQuizRepository implements QuizRepository {
           questionOrder: 1,
         ),
       ],
+    );
+  }
+
+  @override
+  Future<QuizSessionValidation> validateQuizSession({
+    required String sessionId,
+  }) async {
+    final now = DateTime.now();
+
+    return QuizSessionValidation(
+      sessionId: sessionId,
+      status: QuizSessionServerStatus.active,
+      canResume: true,
+      serverTime: now,
+      topicId: 'topic-1',
+      mode: QuizMode.practice,
+      questionCount: 1,
+      createdAt: now.subtract(const Duration(minutes: 5)),
+      expiresAt: now.add(const Duration(hours: 1)),
     );
   }
 
@@ -176,7 +196,7 @@ void main() {
 
     expect(find.text('Soalan ujian keluar kuiz'), findsOneWidget);
 
-    // Keluar tetapi simpan draft.
+    // Keluar sambil mengekalkan draft.
     await tester.tap(find.byType(BackButton));
 
     await tester.pumpAndSettle();
@@ -221,8 +241,8 @@ void main() {
 
     /*
        * Delete pertama berlaku sebelum kuiz
-       * baharu dimulakan. Delete seterusnya
-       * berlaku apabila pengguna membuang sesi.
+       * baharu dimulakan. Delete berikutnya
+       * berlaku apabila sesi dibuang.
        */
     expect(draftRepository.deleteCallCount, greaterThanOrEqualTo(2));
   });

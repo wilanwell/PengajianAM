@@ -7,6 +7,7 @@ import '../../domain/entities/quiz_session_question.dart';
 import '../../domain/entities/quiz_submission.dart';
 import '../../domain/exceptions/quiz_failure.dart';
 import '../../domain/repositories/quiz_repository.dart';
+import '../../domain/entities/quiz_session_validation.dart';
 
 class SupabaseQuizRepository implements QuizRepository {
   const SupabaseQuizRepository(this._client);
@@ -83,6 +84,54 @@ class SupabaseQuizRepository implements QuizRepository {
     } catch (_) {
       throw const QuizFailure(
         'Kuiz tidak dapat dimulakan. '
+        'Semak sambungan Internet anda.',
+      );
+    }
+  }
+
+  @override
+  Future<QuizSessionValidation> validateQuizSession({
+    required String sessionId,
+  }) async {
+    final normalizedSessionId = sessionId.trim();
+
+    if (normalizedSessionId.isEmpty) {
+      throw const QuizFailure('ID sesi kuiz tidak sah.');
+    }
+
+    try {
+      final response = await _client.rpc(
+        'get_my_quiz_session_status',
+        params: {'p_session_id': normalizedSessionId},
+      );
+
+      final responseMap = _readResponseMap(
+        response,
+        operationName: 'get_my_quiz_session_status',
+      );
+
+      final validation = QuizSessionValidation.fromJson(responseMap);
+
+      if (validation.sessionId != normalizedSessionId) {
+        throw const QuizFailure(
+          'Pengesahan sesi kuiz daripada '
+          'server tidak sepadan.',
+        );
+      }
+
+      return validation;
+    } on QuizFailure {
+      rethrow;
+    } on FormatException {
+      throw const QuizFailure(
+        'Format pengesahan sesi kuiz '
+        'daripada server tidak sah.',
+      );
+    } on PostgrestException catch (error) {
+      throw QuizFailure(_mapPostgrestMessage(error.message));
+    } catch (_) {
+      throw const QuizFailure(
+        'Status sesi kuiz tidak dapat disemak. '
         'Semak sambungan Internet anda.',
       );
     }

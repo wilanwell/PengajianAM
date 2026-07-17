@@ -76,7 +76,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       );
   }
 
-  Future<void> _resetLocalData() async {
+  Future<void> _resetAllData() async {
+    if (_isResettingData) {
+      return;
+    }
+
     final shouldReset = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -89,14 +93,19 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ),
           title: const Text('Reset Semua Data?'),
           content: const Text(
-            'Tindakan ini akan memadam dan mengembalikan '
-            'data berikut kepada nilai asal:\n\n'
+            'Tindakan ini akan memadam dan '
+            'mengembalikan data berikut kepada '
+            'nilai asal:\n\n'
             '• Nama paparan\n'
             '• XP dan statistik kuiz\n'
             '• Aktiviti mingguan\n'
             '• Sejarah kuiz\n'
             '• Analitik prestasi\n'
+            '• Sesi kuiz belum selesai\n'
+            '• Jawapan draft pada peranti\n'
             '• Tetapan kuiz lalai\n\n'
+            'Akaun log masuk anda tidak akan '
+            'dipadamkan.\n\n'
             'Tindakan ini tidak boleh dibatalkan.',
           ),
           actions: [
@@ -130,22 +139,50 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     String? errorMessage;
 
     try {
+      /*
+     * RPC reset_my_learning_data() akan:
+     * - reset XP dan progress;
+     * - memadam quiz_attempts;
+     * - memadam private.quiz_sessions;
+     * - mengembalikan nama paparan asal.
+     */
       await ref
           .read(userProgressControllerProvider.notifier)
           .clearLocalProgress();
 
-      await ref.read(quizHistoryControllerProvider.notifier).clearHistory();
+      /*
+     * Padam draft SharedPreferences dan hentikan
+     * timer/state kuiz pada aplikasi.
+     */
+      await ref.read(quizSessionControllerProvider.notifier).discardDraft();
 
-      errorMessage = await ref
-          .read(appSettingsControllerProvider.notifier)
-          .resetToDefaults();
-
-      ref.read(quizSetupControllerProvider.notifier).reset();
-
-      ref.read(quizSessionControllerProvider.notifier).reset();
+      /*
+     * History sudah dipadam oleh RPC reset.
+     * Kita hanya bersihkan state controller supaya
+     * data lama tidak dipaparkan.
+     */
+      ref.read(quizHistoryControllerProvider.notifier).reset();
 
       ref.read(topicAnalyticsControllerProvider.notifier).reset();
 
+      ref.read(quizSetupControllerProvider.notifier).reset();
+
+      ref.read(homeControllerProvider.notifier).reset();
+
+      ref.read(profileControllerProvider.notifier).reset();
+
+      ref.read(leaderboardControllerProvider.notifier).reset();
+
+      final settingsError = await ref
+          .read(appSettingsControllerProvider.notifier)
+          .resetToDefaults();
+
+      errorMessage = settingsError;
+
+      /*
+     * Muatkan semula data terkini daripada
+     * Supabase selepas reset berjaya.
+     */
       await Future.wait<void>([
         ref
             .read(homeControllerProvider.notifier)
@@ -158,7 +195,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             .loadLeaderboard(forceRefresh: true),
       ]);
     } catch (_) {
-      errorMessage = 'Sebahagian data tempatan tidak dapat direset.';
+      errorMessage =
+          'Sebahagian data tidak dapat direset. '
+          'Semak sambungan Internet dan cuba semula.';
     }
 
     if (!mounted) {
@@ -173,7 +212,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       ..hideCurrentSnackBar()
       ..showSnackBar(
         SnackBar(
-          content: Text(errorMessage ?? 'Semua data tempatan telah direset.'),
+          content: Text(
+            errorMessage ??
+                'Semua data pembelajaran '
+                    'telah direset.',
+          ),
         ),
       );
   }
@@ -206,7 +249,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             },
             onModeSelected: _updateDefaultMode,
             onQuestionCountSelected: _updateDefaultQuestionCount,
-            onResetData: _resetLocalData,
+            onResetData: _resetAllData,
           ),
         },
       ),
@@ -463,7 +506,7 @@ class _ResetDataCard extends StatelessWidget {
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Text(
-                  'Reset Data Tempatan',
+                  'Reset Data Pembelajaran',
                   style: textTheme.titleMedium?.copyWith(
                     color: AppColors.error,
                   ),
@@ -473,8 +516,8 @@ class _ResetDataCard extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.sm),
           Text(
-            'Padam semua progress, XP, sejarah kuiz, '
-            'analitik dan tetapan yang disimpan dalam telefon.',
+            'Reset progress, XP, sejarah, analitik '
+            'sesi kuiz belum selesai dan tetapan lalai.',
             style: textTheme.bodyMedium?.copyWith(
               color: AppColors.secondaryText,
             ),

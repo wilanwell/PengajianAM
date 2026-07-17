@@ -264,13 +264,9 @@ class QuizSessionController extends Notifier<QuizSessionState> {
         return null;
       }
 
-      final now = DateTime.now();
+      final canResume = await _isDraftResumableOnServer(draft);
 
-      /*
-       * Jika session Supabase sendiri telah tamat,
-       * draft tidak lagi boleh digunakan.
-       */
-      if (!draft.sessionExpiresAt.isAfter(now)) {
+      if (!canResume) {
         await _draftRepository.deleteDraft(ownerUserId: ownerUserId);
 
         return null;
@@ -279,10 +275,9 @@ class QuizSessionController extends Notifier<QuizSessionState> {
       return draft;
     } catch (_) {
       /*
-       * Draft ialah kemudahan tambahan.
-       * Kegagalan membaca draft tidak patut
-       * menghalang pengguna membuka aplikasi.
-       */
+     * Draft tidak dipadamkan apabila kegagalan
+     * berpunca daripada Internet atau server.
+     */
       return null;
     }
   }
@@ -296,17 +291,24 @@ class QuizSessionController extends Notifier<QuizSessionState> {
       return false;
     }
 
-    final now = DateTime.now();
+    try {
+      final canResume = await _isDraftResumableOnServer(draft);
 
-    if (!draft.sessionExpiresAt.isAfter(now)) {
-      try {
+      if (!canResume) {
         await _draftRepository.deleteDraft(ownerUserId: ownerUserId);
-      } catch (_) {
-        // Draft tamat tempoh tetap tidak dipulihkan.
-      }
 
+        return false;
+      }
+    } catch (_) {
+      /*
+     * Draft dikekalkan apabila server tidak
+     * dapat dihubungi, tetapi sesi tidak
+     * dipulihkan.
+     */
       return false;
     }
+
+    final now = DateTime.now();
 
     _cancelTimer();
 
@@ -331,11 +333,6 @@ class QuizSessionController extends Notifier<QuizSessionState> {
 
     if (draft.mode == QuizMode.exam) {
       if (remainingSeconds == null || remainingSeconds <= 0) {
-        /*
-         * Timer exam telah tamat ketika aplikasi
-         * ditutup. Jawapan dihantar secara automatik
-         * selagi session Supabase masih aktif.
-         */
         await submitQuiz(autoSubmitted: true);
 
         return true;
@@ -528,6 +525,30 @@ class QuizSessionController extends Notifier<QuizSessionState> {
          * baki boleh dikira semula ketika restore.
          */
     });
+  }
+
+  Future<bool> _isDraftResumableOnServer(QuizDraft draft) async {
+    final validation = await _repository.validateQuizSession(
+      sessionId: draft.sessionId,
+    );
+
+    if (!validation.isActive) {
+      return false;
+    }
+
+    if (validation.topicId != draft.topicId) {
+      return false;
+    }
+
+    if (validation.mode != draft.mode) {
+      return false;
+    }
+
+    if (validation.questionCount != draft.questionCount) {
+      return false;
+    }
+
+    return true;
   }
 
   QuizDraft? _createDraftSnapshot() {
