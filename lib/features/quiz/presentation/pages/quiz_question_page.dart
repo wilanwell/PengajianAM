@@ -13,17 +13,21 @@ import '../widgets/quiz_answer_option.dart';
 import '../widgets/quiz_progress_header.dart';
 import '../widgets/quiz_question_navigator.dart';
 
+enum _QuizExitAction { continueQuiz, saveAndExit, discardAndExit }
+
 class QuizQuestionPage extends ConsumerStatefulWidget {
   const QuizQuestionPage({
     required this.topicId,
     required this.mode,
     required this.questionCount,
+    this.resumeDraft = false,
     super.key,
   });
 
   final String topicId;
   final QuizMode mode;
   final int questionCount;
+  final bool resumeDraft;
 
   @override
   ConsumerState<QuizQuestionPage> createState() {
@@ -39,14 +43,63 @@ class _QuizQuestionPageState extends ConsumerState<QuizQuestionPage> {
   void initState() {
     super.initState();
 
-    Future<void>.microtask(() {
-      ref
-          .read(quizSessionControllerProvider.notifier)
-          .startQuiz(
-            topicId: widget.topicId,
-            mode: widget.mode,
-            questionCount: widget.questionCount,
-          );
+    Future<void>.microtask(_initializeQuizSession);
+  }
+
+  Future<void> _initializeQuizSession() async {
+    final controller = ref.read(quizSessionControllerProvider.notifier);
+
+    if (!widget.resumeDraft) {
+      await controller.startQuiz(
+        topicId: widget.topicId,
+        mode: widget.mode,
+        questionCount: widget.questionCount,
+      );
+
+      return;
+    }
+
+    final draft = await controller.loadAvailableDraft();
+
+    if (!mounted) {
+      return;
+    }
+
+    if (draft == null) {
+      _leaveAfterRestoreFailure('Sesi kuiz tersimpan tidak lagi tersedia.');
+
+      return;
+    }
+
+    final restored = await controller.restoreDraft(draft);
+
+    if (!mounted) {
+      return;
+    }
+
+    if (!restored) {
+      _leaveAfterRestoreFailure(
+        'Sesi kuiz tidak dapat disambung. '
+        'Sila mulakan kuiz baharu.',
+      );
+    }
+  }
+
+  void _leaveAfterRestoreFailure(String message) {
+    setState(() {
+      _allowPop = true;
+    });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(message)));
+
+      context.pop();
     });
   }
 
@@ -87,7 +140,7 @@ class _QuizQuestionPageState extends ConsumerState<QuizQuestionPage> {
 
     _isExitDialogOpen = true;
 
-    final shouldExit = await showDialog<bool>(
+    final action = await showDialog<_QuizExitAction>(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) {
@@ -99,28 +152,38 @@ class _QuizQuestionPageState extends ConsumerState<QuizQuestionPage> {
           ),
           title: const Text('Keluar Kuiz?'),
           content: Text(
-            'Kemajuan kuiz semasa belum dihantar.\n\n'
+            'Kemajuan kuiz disimpan secara '
+            'automatik.\n\n'
             '${state.answeredQuestionCount} daripada '
-            '${state.questions.length} soalan telah dijawab.\n'
-            '${state.unansweredQuestionCount} soalan belum dijawab.\n'
-            '${state.flaggedQuestionCount} soalan ditanda.\n\n'
-            'Semua jawapan sesi ini akan dibuang apabila '
-            'anda keluar.',
+            '${state.questions.length} soalan '
+            'telah dijawab.\n'
+            '${state.unansweredQuestionCount} '
+            'soalan belum dijawab.\n'
+            '${state.flaggedQuestionCount} '
+            'soalan ditanda.\n\n'
+            'Pilih Simpan & Keluar untuk '
+            'menyambung kuiz ini kemudian.',
           ),
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.of(dialogContext).pop(false);
+                Navigator.of(dialogContext).pop(_QuizExitAction.continueQuiz);
               },
               child: const Text('Teruskan Kuiz'),
             ),
-            FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+            OutlinedButton.icon(
               onPressed: () {
-                Navigator.of(dialogContext).pop(true);
+                Navigator.of(dialogContext).pop(_QuizExitAction.discardAndExit);
               },
-              icon: const Icon(Icons.exit_to_app_rounded),
-              label: const Text('Keluar'),
+              icon: const Icon(Icons.delete_outline_rounded),
+              label: const Text('Buang Sesi'),
+            ),
+            FilledButton.icon(
+              onPressed: () {
+                Navigator.of(dialogContext).pop(_QuizExitAction.saveAndExit);
+              },
+              icon: const Icon(Icons.save_outlined),
+              label: const Text('Simpan & Keluar'),
             ),
           ],
         );
@@ -129,17 +192,33 @@ class _QuizQuestionPageState extends ConsumerState<QuizQuestionPage> {
 
     _isExitDialogOpen = false;
 
-    if (!mounted || shouldExit != true) {
+    if (!mounted || action == null || action == _QuizExitAction.continueQuiz) {
       return;
     }
 
-    ref.read(quizSessionControllerProvider.notifier).reset();
+    final controller = ref.read(quizSessionControllerProvider.notifier);
+
+    switch (action) {
+      case _QuizExitAction.continueQuiz:
+        return;
+
+      case _QuizExitAction.saveAndExit:
+        await controller.preserveDraftAndReset();
+        break;
+
+      case _QuizExitAction.discardAndExit:
+        await controller.discardDraft();
+        break;
+    }
+
+    if (!mounted) {
+      return;
+    }
 
     setState(() {
       _allowPop = true;
     });
 
-    // Tunggu PopScope dibina semula dengan canPop = true.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
         return;
@@ -154,7 +233,10 @@ class _QuizQuestionPageState extends ConsumerState<QuizQuestionPage> {
       ..hideCurrentSnackBar()
       ..showSnackBar(
         const SnackBar(
-          content: Text('Jawapan sedang dihantar. Sila tunggu sebentar.'),
+          content: Text(
+            'Jawapan sedang dihantar. '
+            'Sila tunggu sebentar.',
+          ),
         ),
       );
   }
@@ -167,10 +249,12 @@ class _QuizQuestionPageState extends ConsumerState<QuizQuestionPage> {
           title: const Text('Hantar Jawapan?'),
           content: Text(
             '${state.answeredQuestionCount} daripada '
-            '${state.questions.length} soalan telah dijawab.\n\n'
-            '${state.unansweredQuestionCount} soalan masih '
-            'belum dijawab.\n\n'
-            '${state.flaggedQuestionCount} soalan telah ditanda.',
+            '${state.questions.length} soalan '
+            'telah dijawab.\n\n'
+            '${state.unansweredQuestionCount} soalan '
+            'masih belum dijawab.\n\n'
+            '${state.flaggedQuestionCount} soalan '
+            'telah ditanda.',
           ),
           actions: [
             TextButton(
@@ -208,7 +292,6 @@ class _QuizQuestionPageState extends ConsumerState<QuizQuestionPage> {
       _allowPop = true;
     });
 
-    // Pastikan PopScope membenarkan route digantikan.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
         return;
@@ -255,11 +338,14 @@ class _QuizQuestionPageState extends ConsumerState<QuizQuestionPage> {
         state.status == QuizSessionStatus.ready ||
         state.status == QuizSessionStatus.submitting;
 
+    final pageMode = state.status == QuizSessionStatus.ready
+        ? state.mode
+        : widget.mode;
+
     return PopScope<void>(
       canPop: _allowPop || !shouldBlockExit,
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) {
-          // Bersihkan sesi yang masih pada peringkat awal.
           if (state.status == QuizSessionStatus.initial ||
               state.status == QuizSessionStatus.loading ||
               state.status == QuizSessionStatus.failure) {
@@ -280,7 +366,7 @@ class _QuizQuestionPageState extends ConsumerState<QuizQuestionPage> {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: Text(widget.mode.label),
+          title: Text(pageMode.label),
           actions: [
             if (state.status == QuizSessionStatus.ready)
               IconButton(
@@ -388,6 +474,7 @@ class _QuizQuestionContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final question = state.currentQuestion;
+
     final textTheme = Theme.of(context).textTheme;
 
     if (question == null) {
@@ -412,7 +499,8 @@ class _QuizQuestionContent extends StatelessWidget {
                 icon: const Icon(Icons.grid_view_rounded),
                 label: Text(
                   'Semak Semua Soalan '
-                  '(${state.unansweredQuestionCount} belum dijawab)',
+                  '(${state.unansweredQuestionCount} '
+                  'belum dijawab)',
                 ),
               ),
               const SizedBox(height: AppSpacing.lg),

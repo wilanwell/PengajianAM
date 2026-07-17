@@ -14,6 +14,16 @@ class QuizSessionQuestion {
   final List<String> options;
   final int questionOrder;
 
+  Map<String, Object?> toJson() {
+    return {
+      'id': id,
+      'topicId': topicId,
+      'questionText': questionText,
+      'options': options,
+      'questionOrder': questionOrder,
+    };
+  }
+
   factory QuizSessionQuestion.fromJson(Map<String, dynamic> json) {
     final rawOptions = json['options'];
 
@@ -31,12 +41,19 @@ class QuizSessionQuestion {
       options.add(option.trim());
     }
 
+    if (options.length < 2) {
+      throw const FormatException(
+        'A quiz question requires at least '
+        'two options.',
+      );
+    }
+
     return QuizSessionQuestion(
       id: _readRequiredString(json, 'id'),
       topicId: _readRequiredString(json, 'topicId'),
       questionText: _readRequiredString(json, 'questionText'),
       options: List<String>.unmodifiable(options),
-      questionOrder: _readRequiredInt(json, 'questionOrder'),
+      questionOrder: _readRequiredInt(json, 'questionOrder', minimum: 1),
     );
   }
 }
@@ -51,12 +68,25 @@ String _readRequiredString(Map<String, dynamic> json, String key) {
   return value.trim();
 }
 
-int _readRequiredInt(Map<String, dynamic> json, String key) {
+int _readRequiredInt(
+  Map<String, dynamic> json,
+  String key, {
+  required int minimum,
+}) {
   final value = json[key];
 
   if (value is! num) {
     throw FormatException('Invalid integer value for $key.');
   }
 
-  return value.toInt();
+  final result = value.toInt();
+
+  if (result < minimum) {
+    throw FormatException(
+      'Integer value for $key is outside '
+      'the allowed range.',
+    );
+  }
+
+  return result;
 }

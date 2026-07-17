@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_draft.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_mode.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_session.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_session_question.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_submission.dart';
+import 'package:pengajian_am_stpm_objektif/features/quiz/domain/repositories/quiz_draft_repository.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/repositories/quiz_repository.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/presentation/controllers/quiz_session_controller.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/presentation/pages/quiz_question_page.dart';
@@ -23,7 +25,7 @@ class _FakeQuizRepository implements QuizRepository {
       topicId: topicId,
       mode: mode,
       questionCount: 1,
-      expiresAt: DateTime(2026, 7, 16, 12),
+      expiresAt: DateTime.now().add(const Duration(hours: 2)),
       questions: [
         QuizSessionQuestion(
           id: 'q1',
@@ -42,44 +44,102 @@ class _FakeQuizRepository implements QuizRepository {
     required Map<String, int> selectedAnswers,
     required Duration elapsedTime,
     required bool autoSubmitted,
-  }) async {
+  }) {
     throw UnimplementedError(
-      'Submission tidak digunakan dalam test keluar kuiz.',
+      'Submission tidak digunakan dalam '
+      'test keluar kuiz.',
     );
   }
 }
 
+class _FakeQuizDraftRepository implements QuizDraftRepository {
+  QuizDraft? storedDraft;
+
+  int saveCallCount = 0;
+  int deleteCallCount = 0;
+  int loadCallCount = 0;
+
+  @override
+  Future<QuizDraft?> loadDraft({required String ownerUserId}) async {
+    loadCallCount++;
+
+    return storedDraft;
+  }
+
+  @override
+  Future<void> saveDraft({
+    required String ownerUserId,
+    required QuizDraft draft,
+  }) async {
+    saveCallCount++;
+    storedDraft = draft;
+  }
+
+  @override
+  Future<void> deleteDraft({required String ownerUserId}) async {
+    deleteCallCount++;
+    storedDraft = null;
+  }
+}
+
 void main() {
-  testWidgets('meminta pengesahan sebelum keluar daripada kuiz', (
-    tester,
-  ) async {
+  testWidgets('menyimpan, menyambung dan membuang sesi kuiz', (tester) async {
+    final draftRepository = _FakeQuizDraftRepository();
+
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           quizRepositoryProvider.overrideWithValue(const _FakeQuizRepository()),
+          quizDraftRepositoryProvider.overrideWithValue(draftRepository),
+          quizDraftOwnerIdProvider.overrideWithValue('test-user'),
         ],
         child: MaterialApp(
           home: Builder(
             builder: (context) {
               return Scaffold(
                 appBar: AppBar(title: const Text('Halaman Ujian')),
-                body: Center(
-                  child: FilledButton(
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) {
-                            return const QuizQuestionPage(
-                              topicId: 'topic-1',
-                              mode: QuizMode.practice,
-                              questionCount: 1,
-                            );
-                          },
-                        ),
-                      );
-                    },
-                    child: const Text('Buka Kuiz'),
-                  ),
+                body: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Center(
+                      child: FilledButton(
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) {
+                                return const QuizQuestionPage(
+                                  topicId: 'topic-1',
+                                  mode: QuizMode.practice,
+                                  questionCount: 1,
+                                );
+                              },
+                            ),
+                          );
+                        },
+                        child: const Text('Buka Kuiz'),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Center(
+                      child: OutlinedButton(
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) {
+                                return const QuizQuestionPage(
+                                  topicId: 'topic-1',
+                                  mode: QuizMode.practice,
+                                  questionCount: 1,
+                                  resumeDraft: true,
+                                );
+                              },
+                            ),
+                          );
+                        },
+                        child: const Text('Sambung Kuiz'),
+                      ),
+                    ),
+                  ],
                 ),
               );
             },
@@ -88,27 +148,17 @@ void main() {
       ),
     );
 
-    final openQuizButton = find.widgetWithText(FilledButton, 'Buka Kuiz');
-
-    expect(openQuizButton, findsOneWidget);
-
-    await tester.tap(openQuizButton);
+    await tester.tap(find.widgetWithText(FilledButton, 'Buka Kuiz'));
 
     await tester.pumpAndSettle();
 
     expect(find.text('Soalan ujian keluar kuiz'), findsOneWidget);
 
-    expect(find.text('Jawapan A'), findsOneWidget);
-
     await tester.tap(find.text('Jawapan A'));
 
     await tester.pump();
 
-    final backButton = find.byType(BackButton);
-
-    expect(backButton, findsOneWidget);
-
-    await tester.tap(backButton);
+    await tester.tap(find.byType(BackButton));
 
     await tester.pumpAndSettle();
 
@@ -119,36 +169,61 @@ void main() {
       findsOneWidget,
     );
 
-    expect(find.textContaining('0 soalan belum dijawab'), findsOneWidget);
-
-    // Batalkan cubaan keluar.
+    // Kekal dalam kuiz.
     await tester.tap(find.text('Teruskan Kuiz'));
 
     await tester.pumpAndSettle();
 
     expect(find.text('Soalan ujian keluar kuiz'), findsOneWidget);
 
-    expect(find.text('Jawapan A'), findsOneWidget);
-
-    // Cuba keluar sekali lagi.
+    // Keluar tetapi simpan draft.
     await tester.tap(find.byType(BackButton));
 
     await tester.pumpAndSettle();
 
-    expect(find.text('Keluar Kuiz?'), findsOneWidget);
+    expect(find.text('Simpan & Keluar'), findsOneWidget);
 
-    final exitButton = find.widgetWithText(FilledButton, 'Keluar');
-
-    expect(exitButton, findsOneWidget);
-
-    await tester.tap(exitButton);
+    await tester.tap(find.text('Simpan & Keluar'));
 
     await tester.pumpAndSettle();
 
     expect(find.text('Halaman Ujian'), findsOneWidget);
 
-    expect(find.text('Buka Kuiz'), findsOneWidget);
+    expect(draftRepository.storedDraft, isNotNull);
 
-    expect(find.text('Soalan ujian keluar kuiz'), findsNothing);
+    expect(draftRepository.storedDraft!.selectedAnswers, {'q1': 0});
+
+    // Pulihkan kuiz daripada draft.
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Sambung Kuiz'));
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('Soalan ujian keluar kuiz'), findsOneWidget);
+
+    expect(draftRepository.loadCallCount, greaterThanOrEqualTo(1));
+
+    expect(draftRepository.storedDraft!.selectedAnswers, {'q1': 0});
+
+    // Buang sesi sepenuhnya.
+    await tester.tap(find.byType(BackButton));
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('Buang Sesi'), findsOneWidget);
+
+    await tester.tap(find.text('Buang Sesi'));
+
+    await tester.pumpAndSettle();
+
+    expect(find.text('Halaman Ujian'), findsOneWidget);
+
+    expect(draftRepository.storedDraft, isNull);
+
+    /*
+       * Delete pertama berlaku sebelum kuiz
+       * baharu dimulakan. Delete seterusnya
+       * berlaku apabila pengguna membuang sesi.
+       */
+    expect(draftRepository.deleteCallCount, greaterThanOrEqualTo(2));
   });
 }

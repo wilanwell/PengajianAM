@@ -3,24 +3,24 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/analytics/presentation/pages/topic_analytics_page.dart';
 import '../../features/authentication/presentation/pages/login_page.dart';
 import '../../features/authentication/presentation/pages/register_page.dart';
+import '../../features/authentication/presentation/pages/splash_page.dart';
 import '../../features/home/presentation/pages/home_page.dart';
 import '../../features/leaderboard/presentation/pages/leaderboard_page.dart';
 import '../../features/navigation/presentation/pages/main_navigation_page.dart';
 import '../../features/profile/presentation/pages/profile_page.dart';
 import '../../features/quiz/domain/entities/quiz_mode.dart';
 import '../../features/quiz/domain/entities/quiz_result.dart';
+import '../../features/quiz/presentation/pages/quiz_history_page.dart';
 import '../../features/quiz/presentation/pages/quiz_hub_page.dart';
 import '../../features/quiz/presentation/pages/quiz_instruction_page.dart';
 import '../../features/quiz/presentation/pages/quiz_question_page.dart';
 import '../../features/quiz/presentation/pages/quiz_result_page.dart';
 import '../../features/quiz/presentation/pages/quiz_review_page.dart';
-import '../../features/quiz/presentation/pages/quiz_history_page.dart';
-import '../../features/topics/presentation/pages/topics_page.dart';
-import '../../features/analytics/presentation/pages/topic_analytics_page.dart';
 import '../../features/settings/presentation/pages/settings_page.dart';
-import '../../features/authentication/presentation/pages/splash_page.dart';
+import '../../features/topics/presentation/pages/topics_page.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import 'route_names.dart';
@@ -84,10 +84,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           final questionCount =
               int.tryParse(parameters['questionCount'] ?? '') ?? 10;
 
+          final resumeDraft = parameters['resumeDraft'] == 'true';
+
           return QuizQuestionPage(
             topicId: topicId,
             mode: mode,
             questionCount: questionCount,
+            resumeDraft: resumeDraft,
           );
         },
       ),
