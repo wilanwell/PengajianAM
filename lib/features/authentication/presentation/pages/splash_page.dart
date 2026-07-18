@@ -28,8 +28,11 @@ class _SplashPageState extends ConsumerState<SplashPage> {
   }
 
   Future<void> _resolveInitialRoute() async {
-    // Memuatkan sesi dan memastikan Splash Screen
-    // dipaparkan sekurang-kurangnya 1.2 saat.
+    /*
+     * Memuatkan sesi dan memastikan
+     * Splash Screen dipaparkan sekurang-
+     * kurangnya 1.5 saat.
+     */
     await Future.wait<void>([
       ref
           .read(authSessionControllerProvider.notifier)
@@ -58,41 +61,58 @@ class _SplashPageState extends ConsumerState<SplashPage> {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
 
+    final screenHeight = MediaQuery.of(context).size.height;
+
+    final logoSize = screenHeight < 650 ? 205.0 : 245.0;
+
     return Scaffold(
       backgroundColor: AppColors.primary,
       body: SafeArea(
         child: Center(
-          child: Padding(
+          child: SingleChildScrollView(
             padding: AppSpacing.screenPadding,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                /*
+                 * Logo penuh mempunyai latar
+                 * cerah. Container putih ini
+                 * memastikan logo kekal jelas
+                 * pada Splash Screen biru.
+                 */
                 Container(
-                  width: 104,
-                  height: 104,
+                  width: logoSize,
+                  height: logoSize,
+                  padding: const EdgeInsets.all(AppSpacing.md),
                   decoration: const BoxDecoration(
                     color: AppColors.surface,
                     borderRadius: AppRadius.extraLarge,
                   ),
-                  child: const Icon(
-                    Icons.school_rounded,
-                    size: 58,
-                    color: AppColors.primary,
+                  child: Semantics(
+                    image: true,
+                    label: 'Logo Pengajian AM STPM Objektif',
+                    child: Image.asset(
+                      'assets/branding/app_logo_full.png',
+                      fit: BoxFit.contain,
+                      filterQuality: FilterQuality.high,
+                      errorBuilder: (context, error, stackTrace) {
+                        return const Icon(
+                          Icons.school_rounded,
+                          size: 88,
+                          color: AppColors.primary,
+                        );
+                      },
+                    ),
                   ),
                 ),
                 const SizedBox(height: AppSpacing.lg),
                 Text(
-                  'Pengajian AM',
+                  'Belajar, Berlatih dan Berjaya',
                   textAlign: TextAlign.center,
-                  style: textTheme.headlineMedium?.copyWith(
+                  style: textTheme.titleMedium?.copyWith(
                     color: AppColors.textOnPrimary,
+                    fontWeight: FontWeight.w600,
                   ),
-                ),
-                const SizedBox(height: AppSpacing.xs),
-                Text(
-                  'STPM Objektif',
-                  textAlign: TextAlign.center,
-                  style: textTheme.titleMedium?.copyWith(color: Colors.white70),
                 ),
                 const SizedBox(height: AppSpacing.xl),
                 const SizedBox(

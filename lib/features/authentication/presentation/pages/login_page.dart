@@ -71,6 +71,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
     final textTheme = Theme.of(context).textTheme;
 
+    final screenHeight = MediaQuery.of(context).size.height;
+
+    final logoHeight = screenHeight < 700 ? 150.0 : 190.0;
+
     ref.listen<LoginState>(loginControllerProvider, (previous, next) {
       final becameSuccessful =
           previous?.status != LoginStatus.success &&
@@ -94,30 +98,44 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Align(
-                        child: Container(
-                          width: 96,
-                          height: 96,
-                          decoration: const BoxDecoration(
-                            color: AppColors.softBlue,
-                            borderRadius: AppRadius.extraLarge,
-                          ),
-                          child: const Icon(
-                            Icons.menu_book_rounded,
-                            size: 52,
-                            color: AppColors.primary,
-                          ),
+                      /*
+                       * Logo penuh aplikasi.
+                       *
+                       * Jika aset gagal dimuatkan,
+                       * ikon buku lama digunakan
+                       * sebagai fallback.
+                       */
+                      Semantics(
+                        image: true,
+                        label: 'Logo Pengajian AM STPM Objektif',
+                        child: Image.asset(
+                          'assets/branding/app_logo_full.png',
+                          height: logoHeight,
+                          fit: BoxFit.contain,
+                          filterQuality: FilterQuality.high,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Align(
+                              child: Container(
+                                width: 96,
+                                height: 96,
+                                decoration: const BoxDecoration(
+                                  color: AppColors.softBlue,
+                                  borderRadius: AppRadius.extraLarge,
+                                ),
+                                child: const Icon(
+                                  Icons.menu_book_rounded,
+                                  size: 52,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            );
+                          },
                         ),
                       ),
-                      const SizedBox(height: AppSpacing.lg),
+                      const SizedBox(height: AppSpacing.md),
                       Text(
-                        'Pengajian AM STPM Objektif',
-                        textAlign: TextAlign.center,
-                        style: textTheme.headlineMedium,
-                      ),
-                      const SizedBox(height: AppSpacing.xs),
-                      Text(
-                        'Belajar dengan fokus, skor dengan yakin.',
+                        'Belajar dengan fokus, '
+                        'skor dengan yakin.',
                         textAlign: TextAlign.center,
                         style: textTheme.bodyMedium?.copyWith(
                           color: AppColors.secondaryText,
@@ -140,8 +158,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                             ),
                             const SizedBox(height: AppSpacing.xs),
                             Text(
-                              'Log masuk untuk meneruskan '
-                              'pembelajaran anda.',
+                              'Log masuk untuk '
+                              'meneruskan pembelajaran '
+                              'anda.',
                               style: textTheme.bodyMedium?.copyWith(
                                 color: AppColors.secondaryText,
                               ),
@@ -280,9 +299,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       ),
                       const SizedBox(height: AppSpacing.lg),
                       Text(
-                        'Dengan meneruskan, anda bersetuju '
-                        'dengan Terma Penggunaan dan '
-                        'Dasar Privasi.',
+                        'Dengan meneruskan, anda '
+                        'bersetuju dengan Terma '
+                        'Penggunaan dan Dasar Privasi.',
                         textAlign: TextAlign.center,
                         style: textTheme.bodySmall?.copyWith(
                           color: AppColors.secondaryText,
