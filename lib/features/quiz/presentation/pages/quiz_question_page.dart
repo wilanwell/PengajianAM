@@ -622,53 +622,211 @@ class _QuizQuestionContent extends StatelessWidget {
             ],
           ),
         ),
-        Container(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.md,
-            AppSpacing.sm,
-            AppSpacing.md,
-            AppSpacing.md,
+        _QuizBottomActionBar(
+          state: state,
+          onPrevious: onPrevious,
+          onNext: onNext,
+          onToggleFlag: onToggleFlag,
+          onSubmit: onSubmit,
+        ),
+      ],
+    );
+  }
+}
+
+class _QuizBottomActionBar extends StatelessWidget {
+  const _QuizBottomActionBar({
+    required this.state,
+    required this.onPrevious,
+    required this.onNext,
+    required this.onToggleFlag,
+    required this.onSubmit,
+  });
+
+  final QuizSessionState state;
+  final VoidCallback onPrevious;
+  final VoidCallback onNext;
+  final VoidCallback onToggleFlag;
+  final VoidCallback onSubmit;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.sm,
+        AppSpacing.md,
+        AppSpacing.md,
+      ),
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(top: BorderSide(color: AppColors.border)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            /*
+             * LayoutBuilder menerima lebar ruang
+             * selepas padding kiri dan kanan
+             * ditolak.
+             *
+             * Pada skrin sempit atau saiz teks
+             * yang besar, bottom bar menggunakan
+             * ikon sahaja.
+             */
+            final textScaler = MediaQuery.textScalerOf(context);
+
+            final usesLargeText = textScaler.scale(16) > 18;
+
+            final isCompact = constraints.maxWidth < 340 || usesLargeText;
+
+            if (isCompact) {
+              return _buildCompactActions();
+            }
+
+            return _buildRegularActions();
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompactActions() {
+    final nextTooltip = state.isLastQuestion
+        ? 'Hantar jawapan'
+        : 'Soalan seterusnya';
+
+    return Row(
+      children: [
+        Expanded(
+          child: Semantics(
+            button: true,
+            label: 'Soalan sebelumnya',
+            child: Tooltip(
+              message: 'Soalan sebelumnya',
+              child: OutlinedButton(
+                onPressed: state.canGoPrevious ? onPrevious : null,
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(56),
+                  padding: EdgeInsets.zero,
+                ),
+                child: const Icon(Icons.arrow_back_rounded, size: 24),
+              ),
+            ),
           ),
-          decoration: const BoxDecoration(
-            color: AppColors.surface,
-            border: Border(top: BorderSide(color: AppColors.border)),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        SizedBox(
+          width: 56,
+          height: 56,
+          child: Semantics(
+            button: true,
+            label: state.isCurrentQuestionFlagged
+                ? 'Buang tanda soalan'
+                : 'Tandakan soalan',
+            child: IconButton.filledTonal(
+              tooltip: state.isCurrentQuestionFlagged
+                  ? 'Buang tanda soalan'
+                  : 'Tandakan soalan',
+              onPressed: onToggleFlag,
+              iconSize: 24,
+              icon: Icon(
+                state.isCurrentQuestionFlagged
+                    ? Icons.bookmark_rounded
+                    : Icons.bookmark_border_rounded,
+              ),
+            ),
           ),
-          child: SafeArea(
-            top: false,
-            child: Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: state.canGoPrevious ? onPrevious : null,
-                    icon: const Icon(Icons.arrow_back_rounded),
-                    label: const Text('Sebelum'),
-                  ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: Semantics(
+            button: true,
+            label: nextTooltip,
+            child: Tooltip(
+              message: nextTooltip,
+              child: FilledButton(
+                onPressed: state.isLastQuestion ? onSubmit : onNext,
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(56),
+                  padding: EdgeInsets.zero,
                 ),
-                const SizedBox(width: AppSpacing.xs),
-                IconButton.filledTonal(
-                  tooltip: state.isCurrentQuestionFlagged
-                      ? 'Buang tanda'
-                      : 'Tandakan soalan',
-                  onPressed: onToggleFlag,
-                  icon: Icon(
-                    state.isCurrentQuestionFlagged
-                        ? Icons.bookmark_rounded
-                        : Icons.bookmark_border_rounded,
-                  ),
+                child: Icon(
+                  state.isLastQuestion
+                      ? Icons.send_rounded
+                      : Icons.arrow_forward_rounded,
+                  size: 24,
                 ),
-                const SizedBox(width: AppSpacing.xs),
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: state.isLastQuestion ? onSubmit : onNext,
-                    icon: Icon(
-                      state.isLastQuestion
-                          ? Icons.send_rounded
-                          : Icons.arrow_forward_rounded,
-                    ),
-                    label: Text(state.isLastQuestion ? 'Hantar' : 'Seterusnya'),
-                  ),
-                ),
-              ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRegularActions() {
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: state.canGoPrevious ? onPrevious : null,
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(56),
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+            ),
+            icon: const Icon(Icons.arrow_back_rounded, size: 20),
+            label: const Text(
+              'Sebelum',
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.fade,
+            ),
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        SizedBox(
+          width: 56,
+          height: 56,
+          child: Semantics(
+            button: true,
+            label: state.isCurrentQuestionFlagged
+                ? 'Buang tanda soalan'
+                : 'Tandakan soalan',
+            child: IconButton.filledTonal(
+              tooltip: state.isCurrentQuestionFlagged
+                  ? 'Buang tanda soalan'
+                  : 'Tandakan soalan',
+              onPressed: onToggleFlag,
+              iconSize: 24,
+              icon: Icon(
+                state.isCurrentQuestionFlagged
+                    ? Icons.bookmark_rounded
+                    : Icons.bookmark_border_rounded,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: FilledButton.icon(
+            onPressed: state.isLastQuestion ? onSubmit : onNext,
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(56),
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+            ),
+            icon: Icon(
+              state.isLastQuestion
+                  ? Icons.send_rounded
+                  : Icons.arrow_forward_rounded,
+              size: 20,
+            ),
+            label: Text(
+              state.isLastQuestion ? 'Hantar' : 'Seterusnya',
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.fade,
             ),
           ),
         ),
