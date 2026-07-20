@@ -15,26 +15,44 @@ class SupabaseTopicsRepository implements TopicsRepository {
   @override
   Future<List<StudyTopic>> fetchTopics() async {
     try {
-      final rows = await _requestExecutor.run<List<Map<String, dynamic>>>(
-        request: () async {
-          final response = await _client
-              .from('topics')
-              .select(
-                'id, code, semester, title, '
-                'description, question_count, '
-                'sort_order',
-              )
-              .eq('is_active', true)
-              .order('sort_order', ascending: true);
-
-          return List<Map<String, dynamic>>.from(response);
+      final response = await _requestExecutor.run<Object?>(
+        request: () {
+          return _client.rpc('get_my_topics_with_progress');
         },
       );
 
-      final topics = <StudyTopic>[];
+      final responseMap = _readResponseMap(response);
 
-      for (final row in rows) {
-        topics.add(_mapTopic(row));
+      final rawTopics = responseMap['topics'];
+
+      if (rawTopics is! List) {
+        throw const TopicsFailure(
+          'Senarai topik daripada server '
+          'tidak sah.',
+        );
+      }
+
+      final topics = <StudyTopic>[];
+      final topicIds = <String>{};
+
+      for (final rawTopic in rawTopics) {
+        if (rawTopic is! Map) {
+          throw const TopicsFailure(
+            'Data topik daripada server '
+            'tidak sah.',
+          );
+        }
+
+        final topic = _mapTopic(Map<String, dynamic>.from(rawTopic));
+
+        if (!topicIds.add(topic.id)) {
+          throw const TopicsFailure(
+            'Server mengembalikan topik '
+            'yang berulang.',
+          );
+        }
+
+        topics.add(topic);
       }
 
       return List<StudyTopic>.unmodifiable(topics);
@@ -46,34 +64,54 @@ class SupabaseTopicsRepository implements TopicsRepository {
       throw TopicsFailure(_mapPostgrestErrorMessage(error.message));
     } catch (_) {
       throw const TopicsFailure(
-        'Tidak dapat berhubung dengan '
-        'pelayan topik. '
-        'Semak sambungan Internet anda.',
+        'Topik dan progress tidak dapat '
+        'dimuatkan. Semak sambungan '
+        'Internet anda.',
       );
     }
   }
 
-  StudyTopic _mapTopic(Map<String, dynamic> row) {
-    final questionCount = _readInteger(row, 'question_count');
+  StudyTopic _mapTopic(Map<String, dynamic> json) {
+    final questionCount = _readInteger(json, 'questionCount', minimum: 0);
+
+    final completedQuestionCount = _readInteger(
+      json,
+      'completedQuestionCount',
+      minimum: 0,
+    );
+
+    if (completedQuestionCount > questionCount) {
+      throw const TopicsFailure(
+        'Progress topik daripada server '
+        'melebihi jumlah soalan topik.',
+      );
+    }
 
     return StudyTopic(
-      id: _readRequiredString(row, 'id'),
-      code: _readRequiredString(row, 'code'),
-      semester: _readInteger(row, 'semester'),
-      title: _readRequiredString(row, 'title'),
-      description: _readOptionalString(row, 'description'),
+      id: _readRequiredString(json, 'id'),
+      code: _readRequiredString(json, 'code'),
+      semester: _readInteger(json, 'semester', minimum: 1),
+      title: _readRequiredString(json, 'title'),
+      description: _readOptionalString(json, 'description'),
       questionCount: questionCount,
-
-      /*
-       * Per-topic progress akan dibaca daripada
-       * sumber progress apabila tersedia.
-       */
-      completedQuestionCount: 0,
+      completedQuestionCount: completedQuestionCount,
+      lastAttemptAt: _readOptionalDateTime(json, 'lastAttemptAt'),
     );
   }
 
-  String _readRequiredString(Map<String, dynamic> row, String key) {
-    final value = row[key];
+  Map<String, dynamic> _readResponseMap(Object? response) {
+    if (response is! Map) {
+      throw const TopicsFailure(
+        'Response topik daripada server '
+        'tidak sah.',
+      );
+    }
+
+    return Map<String, dynamic>.from(response);
+  }
+
+  String _readRequiredString(Map<String, dynamic> json, String key) {
+    final value = json[key];
 
     if (value is! String || value.trim().isEmpty) {
       throw TopicsFailure(
@@ -85,8 +123,8 @@ class SupabaseTopicsRepository implements TopicsRepository {
     return value.trim();
   }
 
-  String _readOptionalString(Map<String, dynamic> row, String key) {
-    final value = row[key];
+  String _readOptionalString(Map<String, dynamic> json, String key) {
+    final value = json[key];
 
     if (value == null) {
       return '';
@@ -102,8 +140,12 @@ class SupabaseTopicsRepository implements TopicsRepository {
     return value.trim();
   }
 
-  int _readInteger(Map<String, dynamic> row, String key) {
-    final value = row[key];
+  int _readInteger(
+    Map<String, dynamic> json,
+    String key, {
+    required int minimum,
+  }) {
+    final value = json[key];
 
     if (value is! num) {
       throw TopicsFailure(
@@ -112,27 +154,68 @@ class SupabaseTopicsRepository implements TopicsRepository {
       );
     }
 
-    return value.toInt();
+    final result = value.toInt();
+
+    if (result < minimum) {
+      throw TopicsFailure(
+        'Data topik pada ruangan $key '
+        'berada di luar julat.',
+      );
+    }
+
+    return result;
+  }
+
+  DateTime? _readOptionalDateTime(Map<String, dynamic> json, String key) {
+    final value = json[key];
+
+    if (value == null) {
+      return null;
+    }
+
+    if (value is! String) {
+      throw TopicsFailure(
+        'Tarikh topik pada ruangan $key '
+        'tidak sah.',
+      );
+    }
+
+    final parsedValue = DateTime.tryParse(value);
+
+    if (parsedValue == null) {
+      throw TopicsFailure(
+        'Tarikh topik pada ruangan $key '
+        'tidak sah.',
+      );
+    }
+
+    return parsedValue;
   }
 
   String _mapPostgrestErrorMessage(String originalMessage) {
     final message = originalMessage.toLowerCase();
 
+    if (message.contains('authentication required')) {
+      return 'Sesi anda telah tamat. '
+          'Sila log masuk semula.';
+    }
+
     if (message.contains('permission denied') ||
         message.contains('row-level security')) {
-      return 'Anda tidak mempunyai kebenaran '
-          'untuk membaca senarai topik.';
+      return 'Anda tidak mempunyai '
+          'kebenaran untuk membaca '
+          'senarai topik.';
     }
 
     if (message.contains('failed host lookup') ||
         message.contains('connection refused') ||
         message.contains('network')) {
-      return 'Tidak dapat berhubung dengan '
-          'pelayan topik. '
+      return 'Tidak dapat berhubung '
+          'dengan pelayan topik. '
           'Semak sambungan Internet anda.';
     }
 
-    return 'Topik tidak dapat dimuatkan '
-        'daripada Supabase.';
+    return 'Topik dan progress tidak dapat '
+        'dimuatkan daripada Supabase.';
   }
 }
