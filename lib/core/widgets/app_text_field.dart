@@ -5,6 +5,7 @@ class AppTextField extends StatelessWidget {
     required this.label,
     required this.hint,
     super.key,
+    this.controller,
     this.keyboardType,
     this.textInputAction,
     this.obscureText = false,
@@ -19,20 +20,27 @@ class AppTextField extends StatelessWidget {
 
   final String label;
   final String hint;
+
+  final TextEditingController? controller;
   final TextInputType? keyboardType;
   final TextInputAction? textInputAction;
+
   final bool obscureText;
   final bool enabled;
+
   final Widget? prefixIcon;
   final Widget? suffixIcon;
+
   final FormFieldValidator<String>? validator;
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onFieldSubmitted;
+
   final Iterable<String>? autofillHints;
 
   @override
   Widget build(BuildContext context) {
     return TextFormField(
+      controller: controller,
       enabled: enabled,
       keyboardType: keyboardType,
       textInputAction: textInputAction,

@@ -62,6 +62,12 @@ class _FakeAuthSessionRepository implements AuthSessionRepository {
   }
 
   @override
+  Future<void> sendPasswordResetEmail({required String email}) async {}
+
+  @override
+  Future<void> updatePassword({required String newPassword}) async {}
+
+  @override
   Future<void> signOut() async {
     storedSession = null;
   }

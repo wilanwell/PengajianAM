@@ -57,12 +57,6 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     }
   }
 
-  void _showTemporaryMessage(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
-  }
-
   @override
   Widget build(BuildContext context) {
     final loginState = ref.watch(loginControllerProvider);
@@ -71,7 +65,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
     final textTheme = Theme.of(context).textTheme;
 
-    final screenHeight = MediaQuery.of(context).size.height;
+    final screenHeight = MediaQuery.sizeOf(context).height;
 
     final logoHeight = screenHeight < 700 ? 150.0 : 190.0;
 
@@ -98,13 +92,6 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      /*
-                       * Logo penuh aplikasi.
-                       *
-                       * Jika aset gagal dimuatkan,
-                       * ikon buku lama digunakan
-                       * sebagai fallback.
-                       */
                       Semantics(
                         image: true,
                         label: 'Logo Pengajian AM STPM Objektif',
@@ -220,9 +207,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                     loginState.isLoading || _isCompletingLogin
                                     ? null
                                     : () {
-                                        _showTemporaryMessage(
-                                          'Fungsi lupa kata laluan '
-                                          'akan dibina kemudian.',
+                                        context.pushNamed(
+                                          RouteNames.forgotPassword,
+                                          queryParameters: {
+                                            'email': loginState.email.trim(),
+                                          },
                                         );
                                       },
                                 child: const Text('Lupa kata laluan?'),

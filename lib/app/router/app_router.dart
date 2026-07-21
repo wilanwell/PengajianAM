@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/analytics/presentation/pages/topic_analytics_page.dart';
+import '../../features/authentication/presentation/pages/forgot_password_page.dart';
 import '../../features/authentication/presentation/pages/login_page.dart';
 import '../../features/authentication/presentation/pages/register_page.dart';
 import '../../features/authentication/presentation/pages/splash_page.dart';
@@ -21,6 +22,7 @@ import '../../features/quiz/presentation/pages/quiz_result_page.dart';
 import '../../features/quiz/presentation/pages/quiz_review_page.dart';
 import '../../features/settings/presentation/pages/settings_page.dart';
 import '../../features/topics/presentation/pages/topics_page.dart';
+import '../../features/authentication/presentation/pages/reset_password_page.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import 'route_names.dart';
@@ -42,6 +44,22 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: RouteNames.login,
         builder: (context, state) {
           return const LoginPage();
+        },
+      ),
+      GoRoute(
+        path: RoutePaths.forgotPassword,
+        name: RouteNames.forgotPassword,
+        builder: (context, state) {
+          return ForgotPasswordPage(
+            initialEmail: state.uri.queryParameters['email'] ?? '',
+          );
+        },
+      ),
+      GoRoute(
+        path: RoutePaths.resetPassword,
+        name: RouteNames.resetPassword,
+        builder: (context, state) {
+          return const ResetPasswordPage();
         },
       ),
       GoRoute(

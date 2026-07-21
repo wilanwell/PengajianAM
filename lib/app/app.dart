@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/network/presentation/widgets/network_status_banner_listener.dart';
+import '../features/authentication/presentation/widgets/password_recovery_navigation_listener.dart';
 import 'router/app_router.dart';
 import 'theme/app_theme.dart';
 
@@ -31,14 +32,18 @@ class App extends ConsumerWidget {
       routerConfig: router,
 
       /*
-       * MaterialApp.builder membalut seluruh
-       * kandungan router dengan listener status
-       * rangkaian.
+       * Builder membalut keseluruhan kandungan
+       * router dengan dua global listener:
+       *
+       * 1. Password recovery navigation
+       * 2. Network status banner
        */
       builder: (context, child) {
-        return NetworkStatusBannerListener(
-          scaffoldMessengerKey: rootScaffoldMessengerKey,
-          child: child ?? const SizedBox.shrink(),
+        return PasswordRecoveryNavigationListener(
+          child: NetworkStatusBannerListener(
+            scaffoldMessengerKey: rootScaffoldMessengerKey,
+            child: child ?? const SizedBox.shrink(),
+          ),
         );
       },
     );
