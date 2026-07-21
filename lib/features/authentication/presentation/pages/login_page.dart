@@ -287,14 +287,13 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                         ),
                       ),
                       const SizedBox(height: AppSpacing.lg),
-                      Text(
-                        'Dengan meneruskan, anda '
-                        'bersetuju dengan Terma '
-                        'Penggunaan dan Dasar Privasi.',
-                        textAlign: TextAlign.center,
-                        style: textTheme.bodySmall?.copyWith(
-                          color: AppColors.secondaryText,
-                        ),
+                      _LegalAgreementText(
+                        onOpenTerms: () {
+                          context.pushNamed(RouteNames.termsOfUse);
+                        },
+                        onOpenPrivacy: () {
+                          context.pushNamed(RouteNames.privacyPolicy);
+                        },
                       ),
                     ],
                   ),
@@ -302,6 +301,71 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LegalAgreementText extends StatelessWidget {
+  const _LegalAgreementText({
+    required this.onOpenTerms,
+    required this.onOpenPrivacy,
+  });
+
+  final VoidCallback onOpenTerms;
+  final VoidCallback onOpenPrivacy;
+
+  @override
+  Widget build(BuildContext context) {
+    final normalStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
+      color: AppColors.secondaryText,
+      height: 1.4,
+    );
+
+    return Wrap(
+      alignment: WrapAlignment.center,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        Text(
+          'Dengan meneruskan, anda '
+          'bersetuju dengan ',
+          style: normalStyle,
+          textAlign: TextAlign.center,
+        ),
+        _InlineLegalLink(label: 'Terma Penggunaan', onTap: onOpenTerms),
+        Text(' dan ', style: normalStyle),
+        _InlineLegalLink(label: 'Dasar Privasi', onTap: onOpenPrivacy),
+        Text('.', style: normalStyle),
+      ],
+    );
+  }
+}
+
+class _InlineLegalLink extends StatelessWidget {
+  const _InlineLegalLink({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton(
+      onPressed: onTap,
+      style: TextButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: VisualDensity.compact,
+        foregroundColor: AppColors.actionBlue,
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: AppColors.actionBlue,
+          fontWeight: FontWeight.w700,
+          decoration: TextDecoration.underline,
+          decorationColor: AppColors.actionBlue,
         ),
       ),
     );

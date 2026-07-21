@@ -10,6 +10,8 @@ import '../../features/authentication/presentation/pages/register_page.dart';
 import '../../features/authentication/presentation/pages/splash_page.dart';
 import '../../features/home/presentation/pages/home_page.dart';
 import '../../features/leaderboard/presentation/pages/leaderboard_page.dart';
+import '../../features/legal/presentation/pages/privacy_policy_page.dart';
+import '../../features/legal/presentation/pages/terms_of_use_page.dart';
 import '../../features/navigation/presentation/pages/main_navigation_page.dart';
 import '../../features/profile/presentation/pages/profile_page.dart';
 import '../../features/quiz/domain/entities/quiz_mode.dart';
@@ -67,6 +69,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: RouteNames.register,
         builder: (context, state) {
           return const RegisterPage();
+        },
+      ),
+      GoRoute(
+        path: RoutePaths.termsOfUse,
+        name: RouteNames.termsOfUse,
+        builder: (context, state) {
+          return const TermsOfUsePage();
+        },
+      ),
+      GoRoute(
+        path: RoutePaths.privacyPolicy,
+        name: RouteNames.privacyPolicy,
+        builder: (context, state) {
+          return const PrivacyPolicyPage();
         },
       ),
       GoRoute(

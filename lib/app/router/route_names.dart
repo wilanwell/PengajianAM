@@ -5,6 +5,9 @@ abstract final class RouteNames {
   static const String resetPassword = 'reset-password';
   static const String register = 'register';
 
+  static const String termsOfUse = 'terms-of-use';
+  static const String privacyPolicy = 'privacy-policy';
+
   static const String home = 'home';
   static const String topics = 'topics';
   static const String quiz = 'quiz';
@@ -27,6 +30,9 @@ abstract final class RoutePaths {
   static const String forgotPassword = '/forgot-password';
   static const String resetPassword = '/reset-password';
   static const String register = '/register';
+
+  static const String termsOfUse = '/terms-of-use';
+  static const String privacyPolicy = '/privacy-policy';
 
   static const String home = '/home';
   static const String topics = '/topics';

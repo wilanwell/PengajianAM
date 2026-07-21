@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../../app/router/route_names.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_spacing.dart';
@@ -51,7 +53,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       ..hideCurrentSnackBar()
       ..showSnackBar(
         SnackBar(
-          content: Text(errorMessage ?? 'Mode kuiz lalai telah dikemas kini.'),
+          content: Text(
+            errorMessage ??
+                'Mode kuiz lalai telah '
+                    'dikemas kini.',
+          ),
         ),
       );
   }
@@ -70,7 +76,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       ..showSnackBar(
         SnackBar(
           content: Text(
-            errorMessage ?? 'Jumlah soalan lalai telah dikemas kini.',
+            errorMessage ??
+                'Jumlah soalan lalai telah '
+                    'dikemas kini.',
           ),
         ),
       );
@@ -96,14 +104,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             'Tindakan ini akan memadam dan '
             'mengembalikan data berikut kepada '
             'nilai asal:\n\n'
-            '• Nama paparan\n'
-            '• XP dan statistik kuiz\n'
-            '• Aktiviti mingguan\n'
-            '• Sejarah kuiz\n'
-            '• Analitik prestasi\n'
-            '• Sesi kuiz belum selesai\n'
-            '• Jawapan draft pada peranti\n'
-            '• Tetapan kuiz lalai\n\n'
+            '\u2022 Nama paparan\n'
+            '\u2022 XP dan statistik kuiz\n'
+            '\u2022 Aktiviti mingguan\n'
+            '\u2022 Sejarah kuiz\n'
+            '\u2022 Analitik prestasi\n'
+            '\u2022 Sesi kuiz belum selesai\n'
+            '\u2022 Jawapan draft pada peranti\n'
+            '\u2022 Tetapan kuiz lalai\n\n'
             'Akaun log masuk anda tidak akan '
             'dipadamkan.\n\n'
             'Tindakan ini tidak boleh dibatalkan.',
@@ -139,28 +147,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     String? errorMessage;
 
     try {
-      /*
-     * RPC reset_my_learning_data() akan:
-     * - reset XP dan progress;
-     * - memadam quiz_attempts;
-     * - memadam private.quiz_sessions;
-     * - mengembalikan nama paparan asal.
-     */
       await ref
           .read(userProgressControllerProvider.notifier)
           .clearLocalProgress();
 
-      /*
-     * Padam draft SharedPreferences dan hentikan
-     * timer/state kuiz pada aplikasi.
-     */
       await ref.read(quizSessionControllerProvider.notifier).discardDraft();
 
-      /*
-     * History sudah dipadam oleh RPC reset.
-     * Kita hanya bersihkan state controller supaya
-     * data lama tidak dipaparkan.
-     */
       ref.read(quizHistoryControllerProvider.notifier).reset();
 
       ref.read(topicAnalyticsControllerProvider.notifier).reset();
@@ -179,10 +171,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
       errorMessage = settingsError;
 
-      /*
-     * Muatkan semula data terkini daripada
-     * Supabase selepas reset berjaya.
-     */
       await Future.wait<void>([
         ref
             .read(homeControllerProvider.notifier)
@@ -197,7 +185,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     } catch (_) {
       errorMessage =
           'Sebahagian data tidak dapat direset. '
-          'Semak sambungan Internet dan cuba semula.';
+          'Semak sambungan Internet dan '
+          'cuba semula.';
     }
 
     if (!mounted) {
@@ -235,7 +224,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             const Center(child: CircularProgressIndicator()),
 
           AppSettingsStatus.failure => _SettingsErrorView(
-            message: state.errorMessage ?? 'Tetapan tidak dapat dimuatkan.',
+            message:
+                state.errorMessage ??
+                'Tetapan tidak dapat '
+                    'dimuatkan.',
             onRetry: () {
               controller.loadSettings(forceRefresh: true);
             },
@@ -317,8 +309,9 @@ class _SettingsContent extends StatelessWidget {
                       ),
                       const SizedBox(height: AppSpacing.xxs),
                       Text(
-                        'Sesuaikan tetapan kuiz mengikut '
-                        'cara pembelajaran anda.',
+                        'Sesuaikan tetapan kuiz '
+                        'mengikut cara pembelajaran '
+                        'anda.',
                         style: textTheme.bodyMedium?.copyWith(
                           color: AppColors.secondaryText,
                         ),
@@ -333,8 +326,9 @@ class _SettingsContent extends StatelessWidget {
           Text('Mode Kuiz Lalai', style: textTheme.titleLarge),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            'Mode ini akan dipilih secara automatik apabila '
-            'anda membuka halaman Kuiz.',
+            'Mode ini akan dipilih secara '
+            'automatik apabila anda membuka '
+            'halaman Kuiz.',
             style: textTheme.bodyMedium?.copyWith(
               color: AppColors.secondaryText,
             ),
@@ -363,8 +357,8 @@ class _SettingsContent extends StatelessWidget {
           Text('Jumlah Soalan Lalai', style: textTheme.titleLarge),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            'Jumlah soalan ini akan dipilih secara automatik '
-            'untuk kuiz baharu.',
+            'Jumlah soalan ini akan dipilih '
+            'secara automatik untuk kuiz baharu.',
             style: textTheme.bodyMedium?.copyWith(
               color: AppColors.secondaryText,
             ),
@@ -383,6 +377,38 @@ class _SettingsContent extends StatelessWidget {
                   },
                 ),
             ],
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          Text('Undang-undang dan Privasi', style: textTheme.titleLarge),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            'Baca maklumat tentang penggunaan '
+            'aplikasi dan pengurusan data anda.',
+            style: textTheme.bodyMedium?.copyWith(
+              color: AppColors.secondaryText,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _SettingsNavigationTile(
+            icon: Icons.gavel_outlined,
+            title: 'Terma Penggunaan',
+            description:
+                'Syarat dan peraturan penggunaan '
+                'aplikasi',
+            onTap: () {
+              context.pushNamed(RouteNames.termsOfUse);
+            },
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _SettingsNavigationTile(
+            icon: Icons.privacy_tip_outlined,
+            title: 'Dasar Privasi',
+            description:
+                'Cara data pengguna dikumpul '
+                'dan dilindungi',
+            onTap: () {
+              context.pushNamed(RouteNames.privacyPolicy);
+            },
           ),
           const SizedBox(height: AppSpacing.lg),
           Text('Pengurusan Data', style: textTheme.titleLarge),
@@ -480,6 +506,75 @@ class _SettingsOptionTile extends StatelessWidget {
   }
 }
 
+class _SettingsNavigationTile extends StatelessWidget {
+  const _SettingsNavigationTile({
+    required this.icon,
+    required this.title,
+    required this.description,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String description;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return Material(
+      color: AppColors.surface,
+      borderRadius: AppRadius.large,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AppRadius.large,
+        child: Ink(
+          padding: AppSpacing.cardPadding,
+          decoration: BoxDecoration(
+            borderRadius: AppRadius.large,
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: const BoxDecoration(
+                  color: AppColors.softBlue,
+                  borderRadius: AppRadius.medium,
+                ),
+                child: Icon(icon, color: AppColors.primary),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: textTheme.titleSmall),
+                    const SizedBox(height: AppSpacing.xxs),
+                    Text(
+                      description,
+                      style: textTheme.bodySmall?.copyWith(
+                        color: AppColors.secondaryText,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: AppColors.secondaryText,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ResetDataCard extends StatelessWidget {
   const _ResetDataCard({required this.isResetting, required this.onReset});
 
@@ -516,8 +611,9 @@ class _ResetDataCard extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.sm),
           Text(
-            'Reset progress, XP, sejarah, analitik '
-            'sesi kuiz belum selesai dan tetapan lalai.',
+            'Reset progress, XP, sejarah, '
+            'analitik, sesi kuiz belum selesai '
+            'dan tetapan lalai.',
             style: textTheme.bodyMedium?.copyWith(
               color: AppColors.secondaryText,
             ),

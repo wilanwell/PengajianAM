@@ -7,6 +7,7 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../core/constants/app_disclaimer.dart';
+import '../../../../core/constants/support_information.dart';
 import '../../../authentication/presentation/controllers/auth_session_controller.dart';
 import '../../../authentication/presentation/controllers/login_controller.dart';
 import '../../../home/presentation/controllers/home_controller.dart';
@@ -111,24 +112,166 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   }
 
   void _showAboutApplication() {
-    showAboutDialog(
+    showDialog<void>(
       context: context,
-      applicationName: 'Pengajian AM STPM Objektif',
-      applicationVersion: 'Versi pembangunan 1.0.0',
-      applicationIcon: const CircleAvatar(
-        backgroundColor: AppColors.primary,
-        foregroundColor: AppColors.textOnPrimary,
-        child: Icon(Icons.school_rounded),
-      ),
-      children: const [
-        Text(
-          'Aplikasi latihan objektif untuk '
-          'membantu pelajar mengulang kaji '
-          'Pengajian AM STPM.',
-        ),
-        SizedBox(height: AppSpacing.md),
-        Text(AppDisclaimer.fullMessage),
-      ],
+      builder: (dialogContext) {
+        return AlertDialog(
+          titlePadding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.lg,
+            AppSpacing.lg,
+            0,
+          ),
+          contentPadding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.md,
+            AppSpacing.lg,
+            0,
+          ),
+          actionsPadding: const EdgeInsets.fromLTRB(
+            AppSpacing.md,
+            AppSpacing.sm,
+            AppSpacing.md,
+            AppSpacing.md,
+          ),
+          title: Column(
+            children: [
+              Semantics(
+                image: true,
+                label: 'Logo Pengajian AM STPM Objektif',
+                child: Image.asset(
+                  'assets/branding/app_logo_full.png',
+                  height: 110,
+                  fit: BoxFit.contain,
+                  filterQuality: FilterQuality.high,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      width: 82,
+                      height: 82,
+                      decoration: const BoxDecoration(
+                        color: AppColors.softBlue,
+                        borderRadius: AppRadius.extraLarge,
+                      ),
+                      child: const Icon(
+                        Icons.school_rounded,
+                        size: 46,
+                        color: AppColors.primary,
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              const Text(
+                SupportInformation.appName,
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Text(
+                    SupportInformation.versionLabel,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.secondaryText,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                const Text(
+                  'Aplikasi latihan objektif '
+                  'untuk membantu pelajar '
+                  'mengulang kaji Pengajian AM '
+                  'STPM.',
+                ),
+                const SizedBox(height: AppSpacing.md),
+                const _AboutInformationRow(
+                  icon: Icons.person_outline_rounded,
+                  label: 'Developer/Penerbit',
+                  value: SupportInformation.developerName,
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                const _AboutInformationRow(
+                  icon: Icons.email_outlined,
+                  label: 'E-mel Sokongan',
+                  value: SupportInformation.supportEmail,
+                  selectableValue: true,
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                Container(
+                  width: double.infinity,
+                  padding: AppSpacing.cardPadding,
+                  decoration: const BoxDecoration(
+                    color: AppColors.warningBackground,
+                    borderRadius: AppRadius.medium,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.info_outline_rounded,
+                            size: 20,
+                            color: AppColors.warning,
+                          ),
+                          const SizedBox(width: AppSpacing.xs),
+                          Expanded(
+                            child: Text(
+                              AppDisclaimer.title,
+                              style: Theme.of(context).textTheme.titleSmall
+                                  ?.copyWith(
+                                    color: AppColors.warning,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      Text(
+                        AppDisclaimer.shortMessage,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.secondaryText,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+
+                context.pushNamed(RouteNames.termsOfUse);
+              },
+              child: const Text('Terma Penggunaan'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+
+                context.pushNamed(RouteNames.privacyPolicy);
+              },
+              child: const Text('Dasar Privasi'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+              child: const Text('Tutup'),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -210,7 +353,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
-          const SnackBar(content: Text('Log keluar tidak dapat diselesaikan.')),
+          const SnackBar(
+            content: Text(
+              'Log keluar tidak dapat '
+              'diselesaikan.',
+            ),
+          ),
         );
     }
   }
@@ -246,7 +394,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           ProfileStatus.loading => const _ProfileLoadingView(),
 
           ProfileStatus.failure => _ProfileErrorView(
-            message: state.errorMessage ?? 'Profil tidak dapat dimuatkan.',
+            message:
+                state.errorMessage ??
+                'Profil tidak dapat '
+                    'dimuatkan.',
             onRetry: () {
               controller.loadProfile(forceRefresh: true);
             },
@@ -255,7 +406,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           ProfileStatus.success =>
             state.profile == null
                 ? _ProfileErrorView(
-                    message: 'Maklumat profil tidak tersedia.',
+                    message:
+                        'Maklumat profil tidak '
+                        'tersedia.',
                     onRetry: () {
                       controller.loadProfile(forceRefresh: true);
                     },
@@ -313,7 +466,8 @@ class _ProfileContent extends StatelessWidget {
           const SizedBox(height: AppSpacing.xs),
           Text(
             'Lengkapkan aktiviti pembelajaran '
-            'untuk membuka lebih banyak pencapaian.',
+            'untuk membuka lebih banyak '
+            'pencapaian.',
             style: textTheme.bodyMedium?.copyWith(
               color: AppColors.secondaryText,
             ),
@@ -329,7 +483,9 @@ class _ProfileContent extends StatelessWidget {
           _ProfileMenuTile(
             icon: Icons.insights_rounded,
             title: 'Analitik Prestasi',
-            subtitle: 'Lihat prestasi dan penguasaan setiap topik',
+            subtitle:
+                'Lihat prestasi dan penguasaan '
+                'setiap topik',
             onTap: () {
               context.pushNamed(RouteNames.topicAnalytics);
             },
@@ -338,7 +494,9 @@ class _ProfileContent extends StatelessWidget {
           _ProfileMenuTile(
             icon: Icons.history_rounded,
             title: 'Sejarah Kuiz',
-            subtitle: 'Lihat keputusan dan percubaan terdahulu',
+            subtitle:
+                'Lihat keputusan dan percubaan '
+                'terdahulu',
             onTap: () {
               context.pushNamed(RouteNames.quizHistory);
             },
@@ -347,7 +505,9 @@ class _ProfileContent extends StatelessWidget {
           _ProfileMenuTile(
             icon: Icons.settings_rounded,
             title: 'Tetapan',
-            subtitle: 'Tetapan kuiz dan pengurusan data tempatan',
+            subtitle:
+                'Tetapan kuiz dan pengurusan '
+                'data tempatan',
             onTap: () {
               context.pushNamed(RouteNames.settings);
             },
@@ -356,7 +516,9 @@ class _ProfileContent extends StatelessWidget {
           _ProfileMenuTile(
             icon: Icons.info_outline_rounded,
             title: 'Tentang Aplikasi',
-            subtitle: 'Maklumat versi dan tujuan aplikasi',
+            subtitle:
+                'Maklumat versi, developer '
+                'dan tujuan aplikasi',
             onTap: onShowAbout,
           ),
           const SizedBox(height: AppSpacing.sm),
@@ -374,6 +536,71 @@ class _ProfileContent extends StatelessWidget {
           const SizedBox(height: AppSpacing.lg),
         ],
       ),
+    );
+  }
+}
+
+class _AboutInformationRow extends StatelessWidget {
+  const _AboutInformationRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.selectableValue = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final bool selectableValue;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 40,
+          height: 40,
+          decoration: const BoxDecoration(
+            color: AppColors.softBlue,
+            borderRadius: AppRadius.medium,
+          ),
+          child: Icon(icon, size: 21, color: AppColors.primary),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: textTheme.labelMedium?.copyWith(
+                  color: AppColors.secondaryText,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xxs),
+              if (selectableValue)
+                SelectableText(
+                  value,
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                )
+              else
+                Text(
+                  value,
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
