@@ -25,6 +25,7 @@ import '../../features/quiz/presentation/pages/quiz_review_page.dart';
 import '../../features/settings/presentation/pages/settings_page.dart';
 import '../../features/topics/presentation/pages/topics_page.dart';
 import '../../features/authentication/presentation/pages/reset_password_page.dart';
+import '../../features/authentication/presentation/pages/delete_account_page.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import 'route_names.dart';
@@ -62,6 +63,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: RouteNames.resetPassword,
         builder: (context, state) {
           return const ResetPasswordPage();
+        },
+      ),
+      GoRoute(
+        path: RoutePaths.deleteAccount,
+        name: RouteNames.deleteAccount,
+        builder: (context, state) {
+          return const DeleteAccountPage();
         },
       ),
       GoRoute(

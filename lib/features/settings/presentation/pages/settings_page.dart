@@ -147,12 +147,27 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     String? errorMessage;
 
     try {
+      /*
+       * RPC reset_my_learning_data() akan:
+       * - reset XP dan progress;
+       * - memadam quiz_attempts;
+       * - memadam private.quiz_sessions;
+       * - mengembalikan nama paparan asal.
+       */
       await ref
           .read(userProgressControllerProvider.notifier)
           .clearLocalProgress();
 
+      /*
+       * Padam draft SharedPreferences dan hentikan
+       * timer serta state kuiz.
+       */
       await ref.read(quizSessionControllerProvider.notifier).discardDraft();
 
+      /*
+       * Bersihkan state controller supaya data
+       * lama tidak dipaparkan.
+       */
       ref.read(quizHistoryControllerProvider.notifier).reset();
 
       ref.read(topicAnalyticsControllerProvider.notifier).reset();
@@ -171,6 +186,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
       errorMessage = settingsError;
 
+      /*
+       * Muatkan data terkini selepas reset.
+       */
       await Future.wait<void>([
         ref
             .read(homeControllerProvider.notifier)
@@ -261,9 +279,13 @@ class _SettingsContent extends StatelessWidget {
 
   final AppSettings settings;
   final bool isResettingData;
+
   final Future<void> Function() onRefresh;
+
   final Future<void> Function(QuizMode) onModeSelected;
+
   final Future<void> Function(int) onQuestionCountSelected;
+
   final Future<void> Function() onResetData;
 
   @override
@@ -323,6 +345,7 @@ class _SettingsContent extends StatelessWidget {
             ),
           ),
           const SizedBox(height: AppSpacing.lg),
+
           Text('Mode Kuiz Lalai', style: textTheme.titleLarge),
           const SizedBox(height: AppSpacing.xs),
           Text(
@@ -354,6 +377,7 @@ class _SettingsContent extends StatelessWidget {
             },
           ),
           const SizedBox(height: AppSpacing.lg),
+
           Text('Jumlah Soalan Lalai', style: textTheme.titleLarge),
           const SizedBox(height: AppSpacing.xs),
           Text(
@@ -379,6 +403,7 @@ class _SettingsContent extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppSpacing.lg),
+
           Text('Undang-undang dan Privasi', style: textTheme.titleLarge),
           const SizedBox(height: AppSpacing.xs),
           Text(
@@ -411,9 +436,31 @@ class _SettingsContent extends StatelessWidget {
             },
           ),
           const SizedBox(height: AppSpacing.lg),
+
           Text('Pengurusan Data', style: textTheme.titleLarge),
           const SizedBox(height: AppSpacing.sm),
           _ResetDataCard(isResetting: isResettingData, onReset: onResetData),
+          const SizedBox(height: AppSpacing.lg),
+
+          /*
+           * Bahagian baharu untuk tindakan kekal
+           * terhadap akaun pengguna.
+           */
+          Text('Pengurusan Akaun', style: textTheme.titleLarge),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            'Urus tindakan kekal yang berkaitan '
+            'dengan akaun anda.',
+            style: textTheme.bodyMedium?.copyWith(
+              color: AppColors.secondaryText,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _DeleteAccountNavigationTile(
+            onTap: () {
+              context.pushNamed(RouteNames.deleteAccount);
+            },
+          ),
           const SizedBox(height: AppSpacing.lg),
         ],
       ),
@@ -636,6 +683,73 @@ class _ResetDataCard extends StatelessWidget {
             label: Text(isResetting ? 'Sedang Reset...' : 'Reset Semua Data'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _DeleteAccountNavigationTile extends StatelessWidget {
+  const _DeleteAccountNavigationTile({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return Material(
+      color: AppColors.errorBackground,
+      borderRadius: AppRadius.large,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AppRadius.large,
+        child: Ink(
+          padding: AppSpacing.cardPadding,
+          decoration: BoxDecoration(
+            borderRadius: AppRadius.large,
+            border: Border.all(color: AppColors.error.withAlpha(90)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: AppColors.error.withAlpha(22),
+                  borderRadius: AppRadius.medium,
+                ),
+                child: const Icon(
+                  Icons.delete_forever_rounded,
+                  color: AppColors.error,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Padam Akaun',
+                      style: textTheme.titleSmall?.copyWith(
+                        color: AppColors.error,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.xxs),
+                    Text(
+                      'Padam akaun dan semua data '
+                      'secara kekal',
+                      style: textTheme.bodySmall?.copyWith(
+                        color: AppColors.secondaryText,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              const Icon(Icons.chevron_right_rounded, color: AppColors.error),
+            ],
+          ),
+        ),
       ),
     );
   }

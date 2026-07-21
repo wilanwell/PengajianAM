@@ -3,6 +3,7 @@ abstract final class RouteNames {
   static const String login = 'login';
   static const String forgotPassword = 'forgot-password';
   static const String resetPassword = 'reset-password';
+  static const String deleteAccount = 'delete-account';
   static const String register = 'register';
 
   static const String termsOfUse = 'terms-of-use';
@@ -29,6 +30,7 @@ abstract final class RoutePaths {
   static const String login = '/login';
   static const String forgotPassword = '/forgot-password';
   static const String resetPassword = '/reset-password';
+  static const String deleteAccount = '/delete-account';
   static const String register = '/register';
 
   static const String termsOfUse = '/terms-of-use';
