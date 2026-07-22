@@ -28,7 +28,21 @@ final quizDraftRepositoryProvider = Provider<QuizDraftRepository>((ref) {
 });
 
 final quizDraftOwnerIdProvider = Provider<String?>((ref) {
-  return ref.read(supabaseClientProvider).auth.currentUser?.id;
+  try {
+    final userId = ref.read(supabaseClientProvider).auth.currentUser?.id;
+
+    if (userId == null || userId.trim().isEmpty) {
+      return null;
+    }
+
+    return userId.trim();
+  } catch (_) {
+    /*
+       * Supabase mungkin belum dimulakan
+       * dalam sesetengah widget/unit test.
+       */
+    return null;
+  }
 });
 
 final quizSessionControllerProvider =
@@ -54,7 +68,18 @@ class QuizSessionController extends Notifier<QuizSessionState> {
 
   String? get _draftOwnerUserId {
     try {
-      final userId = ref.read(quizDraftOwnerIdProvider);
+      /*
+     * refresh memaksa provider membaca semula
+     * currentUser daripada sesi Supabase.
+     *
+     * Ini mengelakkan ID akaun terdahulu
+     * kekal dicache selepas logout dan login
+     * menggunakan akaun yang berbeza.
+     *
+     * Provider masih boleh dioverride dalam
+     * unit dan widget test.
+     */
+      final userId = ref.refresh(quizDraftOwnerIdProvider);
 
       if (userId == null || userId.trim().isEmpty) {
         return null;
@@ -110,7 +135,9 @@ class QuizSessionController extends Notifier<QuizSessionState> {
           topicId: topicId,
           mode: mode,
           requestedQuestionCount: questionCount,
-          errorMessage: 'Tiada soalan tersedia untuk topik ini.',
+          errorMessage:
+              'Tiada soalan tersedia '
+              'untuk topik ini.',
         );
 
         return;
@@ -377,7 +404,17 @@ class QuizSessionController extends Notifier<QuizSessionState> {
   Future<void> preserveDraftAndReset() async {
     _cancelTimer();
 
+    /*
+     * Tunggu semua autosave yang sedang
+     * beratur sebelum snapshot terakhir
+     * disimpan.
+     */
     await _draftOperationQueue;
+
+    /*
+     * Operasi ini berlaku sebelum logout,
+     * maka ID pengguna semasa masih tersedia.
+     */
     await _saveCurrentDraftSafely();
 
     _startedAt = null;
@@ -439,7 +476,10 @@ class QuizSessionController extends Notifier<QuizSessionState> {
               earnedXp: submission.earnedXp,
             );
       } catch (_) {
-        // Progress sudah disimpan oleh server.
+        /*
+         * Progress sudah disimpan
+         * oleh server.
+         */
       }
 
       try {
@@ -452,7 +492,10 @@ class QuizSessionController extends Notifier<QuizSessionState> {
               result: submission.result,
             );
       } catch (_) {
-        // Attempt sudah disimpan oleh server.
+        /*
+         * Attempt sudah disimpan
+         * oleh server.
+         */
       }
 
       state = state.copyWith(
@@ -505,6 +548,7 @@ class QuizSessionController extends Notifier<QuizSessionState> {
       if (state.status != QuizSessionStatus.ready ||
           state.remainingSeconds == null) {
         _cancelTimer();
+
         return;
       }
 
@@ -552,8 +596,11 @@ class QuizSessionController extends Notifier<QuizSessionState> {
     }
 
     final sessionId = state.sessionId;
+
     final topicId = state.topicId;
+
     final startedAt = _startedAt;
+
     final sessionExpiresAt = state.sessionExpiresAt;
 
     if (sessionId == null ||
@@ -598,7 +645,10 @@ class QuizSessionController extends Notifier<QuizSessionState> {
     try {
       await _draftRepository.saveDraft(ownerUserId: ownerUserId, draft: draft);
     } catch (_) {
-      // Autosave tidak menghentikan kuiz.
+      /*
+       * Kegagalan autosave tidak
+       * menghentikan kuiz atau logout.
+       */
     }
   }
 
@@ -611,6 +661,14 @@ class QuizSessionController extends Notifier<QuizSessionState> {
       return;
     }
 
+    /*
+     * Owner ID dan snapshot diambil ketika
+     * operasi dimasukkan ke dalam queue.
+     *
+     * Queue mesti diselesaikan sebelum logout
+     * supaya tiada save akaun lama berlaku
+     * selepas akaun baharu log masuk.
+     */
     _draftOperationQueue = _draftOperationQueue.then((_) async {
       try {
         await _draftRepository.saveDraft(
@@ -618,7 +676,10 @@ class QuizSessionController extends Notifier<QuizSessionState> {
           draft: draft,
         );
       } catch (_) {
-        // Queue diteruskan untuk save baharu.
+        /*
+           * Queue diteruskan untuk
+           * operasi save yang seterusnya.
+           */
       }
     });
   }
@@ -635,7 +696,10 @@ class QuizSessionController extends Notifier<QuizSessionState> {
 
       await _draftRepository.deleteDraft(ownerUserId: ownerUserId);
     } catch (_) {
-      // Kegagalan draft tidak membatalkan kuiz.
+      /*
+       * Kegagalan draft tidak
+       * membatalkan operasi kuiz.
+       */
     }
   }
 

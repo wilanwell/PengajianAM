@@ -31,33 +31,39 @@ class HomeController extends Notifier<HomeState> {
 
     try {
       /*
-       * Muatkan semua sumber data sebenar
-       * secara serentak:
-       *
-       * 1. Profile dan overall progress
-       * 2. Progress setiap topik
-       * 3. Weekly leaderboard
+       * Mulakan semua operasi secara serentak.
        */
-      await Future.wait<void>([
-        ref
-            .read(userProgressControllerProvider.notifier)
-            .initialize(forceRefresh: forceRefresh),
-        ref
-            .read(topicsControllerProvider.notifier)
-            .loadTopics(forceRefresh: forceRefresh),
-        ref
-            .read(leaderboardControllerProvider.notifier)
-            .loadLeaderboard(
-              period: LeaderboardPeriod.weekly,
-              forceRefresh: forceRefresh,
-            ),
-      ]);
+      final progressFuture = ref
+          .read(userProgressControllerProvider.notifier)
+          .initialize(forceRefresh: forceRefresh);
+
+      final topicsFuture = ref
+          .read(topicsControllerProvider.notifier)
+          .loadTopics(forceRefresh: forceRefresh);
+
+      /*
+       * Ambil keputusan request leaderboard
+       * ini secara langsung.
+       *
+       * Jangan membaca shared provider state
+       * selepas await kerana request lain boleh
+       * menukarnya kepada loading atau tempoh
+       * yang berbeza.
+       */
+      final leaderboardFuture = ref
+          .read(leaderboardControllerProvider.notifier)
+          .loadLeaderboardState(
+            period: LeaderboardPeriod.weekly,
+            forceRefresh: forceRefresh,
+          );
+
+      await Future.wait<void>([progressFuture, topicsFuture]);
+
+      final leaderboardState = await leaderboardFuture;
 
       final progress = ref.read(userProgressControllerProvider);
 
       final topicsState = ref.read(topicsControllerProvider);
-
-      final leaderboardState = ref.read(leaderboardControllerProvider);
 
       if (topicsState.status != TopicsStatus.success) {
         state = HomeState(
@@ -78,6 +84,17 @@ class HomeController extends Notifier<HomeState> {
               leaderboardState.errorMessage ??
               'Ranking mingguan tidak dapat '
                   'dimuatkan.',
+        );
+
+        return;
+      }
+
+      if (leaderboardState.period != LeaderboardPeriod.weekly) {
+        state = const HomeState(
+          status: HomeStatus.failure,
+          errorMessage:
+              'Tempoh ranking mingguan '
+              'tidak sepadan.',
         );
 
         return;
@@ -111,7 +128,9 @@ class HomeController extends Notifier<HomeState> {
 
       final currentTopic = _resolveCurrentTopic(topics);
 
-      final completedTopics = topics.where((topic) => topic.isCompleted).length;
+      final completedTopics = topics.where((topic) {
+        return topic.isCompleted;
+      }).length;
 
       final summary = HomeSummary(
         displayName: progress.displayName,
@@ -119,25 +138,9 @@ class HomeController extends Notifier<HomeState> {
         completedQuizzes: progress.completedQuizzes,
         averageScore: progress.averageScore,
         totalXp: progress.totalXp,
-
-        /*
-         * Ranking sebenar pengguna daripada
-         * RPC get_leaderboard untuk tempoh weekly.
-         */
         weeklyRank: currentUserEntry.rank,
-
-        /*
-         * Current topic sebenar berdasarkan
-         * progress dan attempt terbaru.
-         */
         currentTopic: currentTopic.title,
         currentTopicProgress: currentTopic.progress,
-
-        /*
-         * Jumlah topik selesai dikira daripada
-         * distinct questions answered bagi
-         * setiap topik.
-         */
         completedTopics: completedTopics,
         totalTopics: topics.length,
       );
@@ -154,15 +157,9 @@ class HomeController extends Notifier<HomeState> {
   }
 
   StudyTopic _resolveCurrentTopic(List<StudyTopic> topics) {
-    /*
-     * Keutamaan 1:
-     *
-     * Topik belum selesai yang mempunyai
-     * attempt paling baharu.
-     */
-    final attemptedIncompleteTopics = topics
-        .where((topic) => !topic.isCompleted && topic.lastAttemptAt != null)
-        .toList();
+    final attemptedIncompleteTopics = topics.where((topic) {
+      return !topic.isCompleted && topic.lastAttemptAt != null;
+    }).toList();
 
     attemptedIncompleteTopics.sort((first, second) {
       return second.lastAttemptAt!.compareTo(first.lastAttemptAt!);
@@ -172,29 +169,15 @@ class HomeController extends Notifier<HomeState> {
       return attemptedIncompleteTopics.first;
     }
 
-    /*
-     * Keutamaan 2:
-     *
-     * Jika pengguna belum mempunyai attempt
-     * aktif, pilih topik pertama yang belum
-     * diselesaikan.
-     */
     for (final topic in topics) {
       if (!topic.isCompleted) {
         return topic;
       }
     }
 
-    /*
-     * Keutamaan 3:
-     *
-     * Jika semua topik telah selesai,
-     * paparkan topik yang mempunyai attempt
-     * paling baharu.
-     */
-    final attemptedTopics = topics
-        .where((topic) => topic.lastAttemptAt != null)
-        .toList();
+    final attemptedTopics = topics.where((topic) {
+      return topic.lastAttemptAt != null;
+    }).toList();
 
     attemptedTopics.sort((first, second) {
       return second.lastAttemptAt!.compareTo(first.lastAttemptAt!);
@@ -204,10 +187,6 @@ class HomeController extends Notifier<HomeState> {
       return attemptedTopics.first;
     }
 
-    /*
-     * Fallback untuk pengguna baharu yang
-     * belum mempunyai sebarang attempt.
-     */
     return topics.first;
   }
 

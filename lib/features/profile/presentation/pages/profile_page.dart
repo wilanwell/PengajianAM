@@ -3,21 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/router/route_names.dart';
+import '../../../../app/session/app_logout_controller.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../core/constants/app_disclaimer.dart';
 import '../../../../core/constants/support_information.dart';
-import '../../../authentication/presentation/controllers/auth_session_controller.dart';
-import '../../../authentication/presentation/controllers/login_controller.dart';
-import '../../../home/presentation/controllers/home_controller.dart';
-import '../../../leaderboard/presentation/controllers/leaderboard_controller.dart';
 import '../../../progress/domain/entities/user_progress.dart';
 import '../../../progress/presentation/controllers/user_progress_controller.dart';
-import '../../../quiz/presentation/controllers/quiz_history_controller.dart';
-import '../../../quiz/presentation/controllers/quiz_session_controller.dart';
-import '../../../quiz/presentation/controllers/quiz_setup_controller.dart';
-import '../../../topics/presentation/controllers/topics_controller.dart';
 import '../../domain/entities/student_profile.dart';
 import '../controllers/profile_controller.dart';
 import '../controllers/profile_state.dart';
@@ -106,7 +99,11 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       ..hideCurrentSnackBar()
       ..showSnackBar(
         SnackBar(
-          content: Text(errorMessage ?? 'Nama paparan telah dikemas kini.'),
+          content: Text(
+            errorMessage ??
+                'Nama paparan telah '
+                    'dikemas kini.',
+          ),
         ),
       );
   }
@@ -138,9 +135,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             children: [
               Semantics(
                 image: true,
-                label: 'Logo Pengajian AM STPM Objektif',
+                label:
+                    'Logo Pengajian AM '
+                    'STPM Objektif',
                 child: Image.asset(
-                  'assets/branding/app_logo_full.png',
+                  'assets/branding/'
+                  'app_logo_full.png',
                   height: 110,
                   fit: BoxFit.contain,
                   filterQuality: FilterQuality.high,
@@ -316,29 +316,11 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     });
 
     try {
-      await ref.read(authSessionControllerProvider.notifier).signOut();
+      await ref.read(appLogoutControllerProvider.notifier).logout();
 
       if (!mounted) {
         return;
       }
-
-      ref.read(loginControllerProvider.notifier).reset();
-
-      ref.read(homeControllerProvider.notifier).reset();
-
-      ref.read(topicsControllerProvider.notifier).reset();
-
-      ref.read(quizSetupControllerProvider.notifier).reset();
-
-      ref.read(quizSessionControllerProvider.notifier).reset();
-
-      ref.read(quizHistoryControllerProvider.notifier).reset();
-
-      ref.read(leaderboardControllerProvider.notifier).reset();
-
-      ref.read(profileControllerProvider.notifier).reset();
-
-      ref.read(userProgressControllerProvider.notifier).resetState();
 
       context.goNamed(RouteNames.login);
     } catch (_) {
@@ -441,7 +423,9 @@ class _ProfileContent extends StatelessWidget {
 
   final StudentProfile profile;
   final bool isLoggingOut;
+
   final Future<void> Function() onRefresh;
+
   final VoidCallback onEditName;
   final VoidCallback onShowAbout;
   final VoidCallback onLogout;
@@ -484,8 +468,8 @@ class _ProfileContent extends StatelessWidget {
             icon: Icons.insights_rounded,
             title: 'Analitik Prestasi',
             subtitle:
-                'Lihat prestasi dan penguasaan '
-                'setiap topik',
+                'Lihat prestasi dan '
+                'penguasaan setiap topik',
             onTap: () {
               context.pushNamed(RouteNames.topicAnalytics);
             },
@@ -495,8 +479,8 @@ class _ProfileContent extends StatelessWidget {
             icon: Icons.history_rounded,
             title: 'Sejarah Kuiz',
             subtitle:
-                'Lihat keputusan dan percubaan '
-                'terdahulu',
+                'Lihat keputusan dan '
+                'percubaan terdahulu',
             onTap: () {
               context.pushNamed(RouteNames.quizHistory);
             },
@@ -506,8 +490,8 @@ class _ProfileContent extends StatelessWidget {
             icon: Icons.settings_rounded,
             title: 'Tetapan',
             subtitle:
-                'Tetapan kuiz dan pengurusan '
-                'data tempatan',
+                'Tetapan kuiz dan '
+                'pengurusan data tempatan',
             onTap: () {
               context.pushNamed(RouteNames.settings);
             },
@@ -529,7 +513,8 @@ class _ProfileContent extends StatelessWidget {
             title: isLoggingOut ? 'Sedang Log Keluar...' : 'Log Keluar',
             subtitle: isLoggingOut
                 ? 'Sila tunggu sebentar'
-                : 'Keluar daripada akaun semasa',
+                : 'Keluar daripada '
+                      'akaun semasa',
             foregroundColor: AppColors.error,
             onTap: isLoggingOut ? () {} : onLogout,
           ),

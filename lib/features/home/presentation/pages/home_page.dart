@@ -3,13 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/router/route_names.dart';
+import '../../../../app/session/app_logout_controller.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_spacing.dart';
-import '../../../authentication/presentation/controllers/auth_session_controller.dart';
-import '../../../authentication/presentation/controllers/login_controller.dart';
 import '../../../progress/domain/entities/user_progress.dart';
 import '../../../progress/presentation/controllers/user_progress_controller.dart';
-import '../../../quiz/presentation/controllers/quiz_history_controller.dart';
 import '../../domain/entities/home_summary.dart';
 import '../controllers/home_controller.dart';
 import '../controllers/home_state.dart';
@@ -49,19 +47,11 @@ class _HomePageState extends ConsumerState<HomePage> {
     });
 
     try {
-      await ref.read(authSessionControllerProvider.notifier).signOut();
+      await ref.read(appLogoutControllerProvider.notifier).logout();
 
       if (!mounted) {
         return;
       }
-
-      ref.read(loginControllerProvider.notifier).reset();
-
-      ref.read(homeControllerProvider.notifier).reset();
-
-      ref.read(userProgressControllerProvider.notifier).resetState();
-
-      ref.read(quizHistoryControllerProvider.notifier).reset();
 
       context.goNamed(RouteNames.login);
     } catch (_) {
@@ -76,7 +66,12 @@ class _HomePageState extends ConsumerState<HomePage> {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
-          const SnackBar(content: Text('Log keluar tidak dapat diselesaikan.')),
+          const SnackBar(
+            content: Text(
+              'Log keluar tidak dapat '
+              'diselesaikan.',
+            ),
+          ),
         );
     }
   }
@@ -133,14 +128,18 @@ class _HomePageState extends ConsumerState<HomePage> {
 
           HomeStatus.failure => _HomeErrorView(
             message:
-                homeState.errorMessage ?? 'Dashboard tidak dapat dimuatkan.',
+                homeState.errorMessage ??
+                'Dashboard tidak dapat '
+                    'dimuatkan.',
             onRetry: _retryLoadingDashboard,
           ),
 
           HomeStatus.success =>
             homeState.summary == null
                 ? _HomeErrorView(
-                    message: 'Maklumat dashboard tidak tersedia.',
+                    message:
+                        'Maklumat dashboard '
+                        'tidak tersedia.',
                     onRetry: _retryLoadingDashboard,
                   )
                 : _HomeContent(
