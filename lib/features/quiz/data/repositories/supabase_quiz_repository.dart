@@ -25,9 +25,9 @@ class SupabaseQuizRepository implements QuizRepository {
   }) async {
     try {
       final response = await _requestExecutor.run<Object?>(
-        request: () async {
+        request: () {
           return _client.rpc(
-            'start_quiz',
+            'start_quiz_v2',
             params: {
               'p_topic_id': topicId,
               'p_question_count': questionCount,
@@ -39,7 +39,7 @@ class SupabaseQuizRepository implements QuizRepository {
 
       final responseMap = _readResponseMap(
         response,
-        operationName: 'start_quiz',
+        operationName: 'start_quiz_v2',
       );
 
       final rawQuestions = responseMap['questions'];
@@ -104,12 +104,73 @@ class SupabaseQuizRepository implements QuizRepository {
         );
       }
 
+      final createdAt = _readDateTime(responseMap, 'createdAt');
+
+      final serverTime = _readDateTime(responseMap, 'serverTime');
+
+      final expiresAt = _readDateTime(responseMap, 'expiresAt');
+
+      final hardExpiresAt = _readDateTime(responseMap, 'hardExpiresAt');
+
+      final examDeadlineAt = _readOptionalDateTime(
+        responseMap,
+        'examDeadlineAt',
+      );
+
+      if (!hardExpiresAt.isAfter(createdAt)) {
+        throw const QuizFailure(
+          'Tempoh sesi kuiz daripada '
+          'server tidak sah.',
+        );
+      }
+
+      if (responseMode == QuizMode.exam) {
+        if (examDeadlineAt == null) {
+          throw const QuizFailure(
+            'Deadline Exam Mode tidak '
+            'disediakan oleh server.',
+          );
+        }
+
+        if (!expiresAt.isAtSameMomentAs(examDeadlineAt)) {
+          throw const QuizFailure(
+            'Deadline Exam Mode daripada '
+            'server tidak sepadan.',
+          );
+        }
+
+        if (examDeadlineAt.isAfter(hardExpiresAt)) {
+          throw const QuizFailure(
+            'Deadline Exam Mode melepasi '
+            'tempoh sesi yang dibenarkan.',
+          );
+        }
+      } else {
+        if (examDeadlineAt != null) {
+          throw const QuizFailure(
+            'Practice Mode tidak sepatutnya '
+            'mempunyai exam deadline.',
+          );
+        }
+
+        if (!expiresAt.isAtSameMomentAs(hardExpiresAt)) {
+          throw const QuizFailure(
+            'Tempoh Practice Mode daripada '
+            'server tidak sepadan.',
+          );
+        }
+      }
+
       return QuizSession(
         sessionId: _readString(responseMap, 'sessionId'),
         topicId: responseTopicId,
         mode: responseMode,
         questionCount: responseQuestionCount,
-        expiresAt: _readDateTime(responseMap, 'expiresAt'),
+        expiresAt: expiresAt,
+        createdAt: createdAt,
+        serverTime: serverTime,
+        hardExpiresAt: hardExpiresAt,
+        examDeadlineAt: examDeadlineAt,
         questions: List<QuizSessionQuestion>.unmodifiable(questions),
       );
     } on QuizFailure {
@@ -143,7 +204,7 @@ class SupabaseQuizRepository implements QuizRepository {
 
     try {
       final response = await _requestExecutor.run<Object?>(
-        request: () async {
+        request: () {
           return _client.rpc(
             'get_my_quiz_session_status',
             params: {'p_session_id': normalizedSessionId},
@@ -205,22 +266,23 @@ class SupabaseQuizRepository implements QuizRepository {
           {'question_id': entry.key, 'selected_option_index': entry.value},
       ];
 
-      final elapsedSeconds = _normalizeElapsedSeconds(elapsedTime);
-
+      /*
+       * elapsedTime dan autoSubmitted masih
+       * berada dalam repository interface
+       * untuk compatibility dengan controller
+       * dan fake repositories sedia ada.
+       *
+       * Nilai tersebut TIDAK dihantar kepada
+       * server. Server v2 mengiranya sendiri.
+       */
       final response = await _requestExecutor.run<Object?>(
-        /*
-         * Submission melibatkan beberapa operasi
-         * database dalam satu transaksi.
-         */
         timeout: const Duration(seconds: 30),
-        request: () async {
+        request: () {
           return _client.rpc(
-            'submit_quiz_attempt',
+            'submit_quiz_attempt_v2',
             params: {
               'p_session_id': normalizedSessionId,
               'p_answers': answerPayload,
-              'p_elapsed_seconds': elapsedSeconds,
-              'p_auto_submitted': autoSubmitted,
             },
           );
         },
@@ -228,7 +290,7 @@ class SupabaseQuizRepository implements QuizRepository {
 
       final responseMap = _readResponseMap(
         response,
-        operationName: 'submit_quiz_attempt',
+        operationName: 'submit_quiz_attempt_v2',
       );
 
       final result = QuizResult.fromJson(responseMap);
@@ -322,6 +384,32 @@ class SupabaseQuizRepository implements QuizRepository {
     return parsedValue;
   }
 
+  DateTime? _readOptionalDateTime(Map<String, dynamic> json, String key) {
+    final value = json[key];
+
+    if (value == null) {
+      return null;
+    }
+
+    if (value is! String || value.trim().isEmpty) {
+      throw QuizFailure(
+        'Tarikh pilihan $key daripada '
+        'server tidak sah.',
+      );
+    }
+
+    final parsedValue = DateTime.tryParse(value);
+
+    if (parsedValue == null) {
+      throw QuizFailure(
+        'Tarikh pilihan $key daripada '
+        'server tidak sah.',
+      );
+    }
+
+    return parsedValue;
+  }
+
   QuizMode _readQuizMode(Map<String, dynamic> json, String key) {
     final value = _readString(json, key);
 
@@ -335,20 +423,6 @@ class SupabaseQuizRepository implements QuizRepository {
       'Mode kuiz daripada server '
       'tidak sah.',
     );
-  }
-
-  int _normalizeElapsedSeconds(Duration duration) {
-    final value = duration.inSeconds;
-
-    if (value < 0) {
-      return 0;
-    }
-
-    if (value > 86400) {
-      return 86400;
-    }
-
-    return value;
   }
 
   String _mapPostgrestMessage(String originalMessage) {
@@ -372,6 +446,19 @@ class SupabaseQuizRepository implements QuizRepository {
     if (message.contains('already been submitted')) {
       return 'Kuiz ini telah dihantar '
           'sebelumnya.';
+    }
+
+    if (message.contains('exam session deadline has passed')) {
+      return 'Masa Exam Mode telah tamat. '
+          'Jawapan tidak dapat dihantar.';
+    }
+
+    if (message.contains(
+      'exam session deadline '
+      'is not configured',
+    )) {
+      return 'Deadline Exam Mode tidak '
+          'dikonfigurasi oleh server.';
     }
 
     if (message.contains('session has expired')) {
