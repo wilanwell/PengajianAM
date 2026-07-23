@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/router/route_names.dart';
+import '../../../../app/session/app_authenticated_session_controller.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_spacing.dart';
@@ -25,6 +26,8 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
   late final TextEditingController _newPasswordController;
 
   late final TextEditingController _confirmPasswordController;
+
+  bool _isPreparingApplication = false;
 
   @override
   void initState() {
@@ -93,10 +96,54 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
         .updatePassword();
   }
 
-  void _continueToApplication() {
-    ref.read(passwordRecoveryControllerProvider.notifier).reset();
+  Future<void> _continueToApplication() async {
+    if (_isPreparingApplication || !mounted) {
+      return;
+    }
 
-    context.goNamed(RouteNames.home);
+    setState(() {
+      _isPreparingApplication = true;
+    });
+
+    try {
+      final errorMessage = await ref
+          .read(appAuthenticatedSessionControllerProvider.notifier)
+          .prepareAuthenticatedSession();
+
+      if (!mounted) {
+        return;
+      }
+
+      if (errorMessage != null) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text(errorMessage)));
+
+        /*
+         * Recovery session tidak tersedia
+         * sebagai authenticated session.
+         * Pengguna boleh log masuk semula
+         * menggunakan kata laluan baharu.
+         */
+        ref.read(passwordRecoveryControllerProvider.notifier).reset();
+
+        context.goNamed(RouteNames.login);
+
+        return;
+      }
+
+      ref.read(passwordRecoveryControllerProvider.notifier).reset();
+
+      context.goNamed(RouteNames.home);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPreparingApplication = false;
+        });
+      } else {
+        _isPreparingApplication = false;
+      }
+    }
   }
 
   void _requestNewLink(String email) {
@@ -128,7 +175,10 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 440),
               child: recoveryState.isPasswordUpdated
-                  ? _PasswordUpdatedContent(onContinue: _continueToApplication)
+                  ? _PasswordUpdatedContent(
+                      isPreparing: _isPreparingApplication,
+                      onContinue: _continueToApplication,
+                    )
                   : Form(
                       key: _formKey,
                       child: Column(
@@ -158,7 +208,8 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
                           const SizedBox(height: AppSpacing.xs),
                           Text(
                             'Masukkan kata laluan '
-                            'baharu untuk akaun anda.',
+                            'baharu untuk akaun '
+                            'anda.',
                             textAlign: TextAlign.center,
                             style: textTheme.bodyMedium?.copyWith(
                               color: AppColors.secondaryText,
@@ -324,8 +375,12 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
 }
 
 class _PasswordUpdatedContent extends StatelessWidget {
-  const _PasswordUpdatedContent({required this.onContinue});
+  const _PasswordUpdatedContent({
+    required this.isPreparing,
+    required this.onContinue,
+  });
 
+  final bool isPreparing;
   final VoidCallback onContinue;
 
   @override
@@ -368,9 +423,20 @@ class _PasswordUpdatedContent extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.xl),
         FilledButton.icon(
-          onPressed: onContinue,
-          icon: const Icon(Icons.arrow_forward_rounded),
-          label: const Text('Teruskan ke Aplikasi'),
+          onPressed: isPreparing ? null : onContinue,
+          icon: isPreparing
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.textOnPrimary,
+                  ),
+                )
+              : const Icon(Icons.arrow_forward_rounded),
+          label: Text(
+            isPreparing ? 'Menyediakan Aplikasi...' : 'Teruskan ke Aplikasi',
+          ),
         ),
       ],
     );

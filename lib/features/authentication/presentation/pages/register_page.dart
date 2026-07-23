@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/router/route_names.dart';
+import '../../../../app/session/app_authenticated_session_controller.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_spacing.dart';
@@ -40,11 +41,13 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   }
 
   Future<void> _completeRegistration(RegisterState registrationState) async {
-    if (_isCompletingRegistration) {
+    if (_isCompletingRegistration || !mounted) {
       return;
     }
 
-    _isCompletingRegistration = true;
+    setState(() {
+      _isCompletingRegistration = true;
+    });
 
     try {
       await Future<void>.delayed(Duration.zero);
@@ -53,6 +56,12 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
         return;
       }
 
+      /*
+       * Apabila e-mel confirmation diperlukan,
+       * Supabase tidak menyediakan authenticated
+       * session. Pengguna perlu mengesahkan
+       * e-mel dan log masuk selepas itu.
+       */
       if (registrationState.requiresEmailConfirmation) {
         await showDialog<void>(
           context: context,
@@ -66,10 +75,11 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
               ),
               title: const Text('Sahkan E-mel Anda'),
               content: Text(
-                'Pautan pengesahan telah dihantar ke:\n\n'
+                'Pautan pengesahan telah '
+                'dihantar ke:\n\n'
                 '${registrationState.email}\n\n'
-                'Buka e-mel tersebut dan sahkan akaun '
-                'sebelum log masuk.',
+                'Buka e-mel tersebut dan sahkan '
+                'akaun sebelum log masuk.',
               ),
               actions: [
                 FilledButton(
@@ -94,9 +104,43 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
         return;
       }
 
+      /*
+       * Pendaftaran yang menghasilkan session
+       * authenticated perlu membersihkan semua
+       * state akaun sebelumnya sebelum Home
+       * dibuka.
+       */
+      final errorMessage = await ref
+          .read(appAuthenticatedSessionControllerProvider.notifier)
+          .prepareAuthenticatedSession();
+
+      if (!mounted) {
+        return;
+      }
+
+      if (errorMessage != null) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text(errorMessage)));
+
+        ref.read(registerControllerProvider.notifier).reset();
+
+        context.goNamed(RouteNames.login);
+
+        return;
+      }
+
+      ref.read(registerControllerProvider.notifier).reset();
+
       context.goNamed(RouteNames.home);
     } finally {
-      _isCompletingRegistration = false;
+      if (mounted) {
+        setState(() {
+          _isCompletingRegistration = false;
+        });
+      } else {
+        _isCompletingRegistration = false;
+      }
     }
   }
 
@@ -155,8 +199,9 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                       ),
                       const SizedBox(height: AppSpacing.xs),
                       Text(
-                        'Daftar untuk menyimpan kemajuan, '
-                        'markah dan kedudukan anda.',
+                        'Daftar untuk menyimpan '
+                        'kemajuan, markah dan '
+                        'kedudukan anda.',
                         textAlign: TextAlign.center,
                         style: textTheme.bodyMedium?.copyWith(
                           color: AppColors.secondaryText,
@@ -344,7 +389,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                         runSpacing: AppSpacing.xxs,
                         children: [
                           Text(
-                            'Sudah mempunyai akaun?',
+                            'Sudah mempunyai '
+                            'akaun?',
                             textAlign: TextAlign.center,
                             style: textTheme.bodyMedium?.copyWith(
                               color: AppColors.secondaryText,

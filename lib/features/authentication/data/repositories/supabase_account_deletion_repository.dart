@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/network/domain/exceptions/network_request_timeout_failure.dart';
@@ -17,75 +19,65 @@ class SupabaseAccountDeletionRepository implements AccountDeletionRepository {
   Future<void> deleteAccount({required String currentPassword}) async {
     final currentUser = _client.auth.currentUser;
 
-    final email = currentUser?.email?.trim();
-
-    if (currentUser == null || email == null || email.isEmpty) {
+    if (currentUser == null) {
       throw const AccountDeletionFailure(
         'Sesi pengguna tidak tersedia. '
         'Sila log masuk semula.',
       );
     }
 
-    if (currentPassword.trim().isEmpty) {
+    /*
+     * Jangan trim kata laluan.
+     *
+     * Space boleh menjadi sebahagian daripada
+     * kata laluan sebenar pengguna.
+     */
+    if (currentPassword.isEmpty) {
       throw const AccountDeletionFailure('Masukkan kata laluan semasa anda.');
+    }
+
+    if (currentPassword.length > 1024) {
+      throw const AccountDeletionFailure('Kata laluan semasa tidak sah.');
     }
 
     try {
       /*
-       * Sahkan kata laluan semasa sebelum
-       * melakukan tindakan kekal.
-       */
-      final authenticationResponse = await _requestExecutor.run<AuthResponse>(
-        request: () {
-          return _client.auth.signInWithPassword(
-            email: email,
-            password: currentPassword,
-          );
-        },
-      );
-
-      final authenticatedUser = authenticationResponse.user;
-
-      final authenticatedSession = authenticationResponse.session;
-
-      if (authenticatedUser == null ||
-          authenticatedSession == null ||
-          authenticatedUser.id != currentUser.id) {
-        throw const AccountDeletionFailure(
-          'Pengesahan identiti gagal. '
-          'Sila log masuk semula.',
-        );
-      }
-
-      /*
-       * Edge Function mendapatkan user ID
-       * daripada JWT pengguna semasa.
+       * Kata laluan dihantar kepada Edge
+       * Function melalui HTTPS.
        *
-       * Aplikasi tidak menghantar user ID
-       * sebagai parameter.
+       * Edge Function akan:
+       * 1. mengesahkan JWT pemanggil;
+       * 2. mengesahkan kata laluan pada server;
+       * 3. memastikan kedua-dua ID sepadan;
+       * 4. memadam akaun.
+       *
+       * Flutter tidak lagi melakukan
+       * signInWithPassword() sebagai kawalan
+       * keselamatan utama.
        */
       final response = await _requestExecutor.run<FunctionResponse>(
         timeout: const Duration(seconds: 30),
         request: () {
-          return _client.functions.invoke(_functionName);
+          return _client.functions.invoke(
+            _functionName,
+            body: {'currentPassword': currentPassword},
+          );
         },
       );
 
       _validateResponse(response);
 
       /*
-       * Jangan sign out di sini.
+       * Jangan sign out di repository ini.
        *
-       * Sesi tempatan masih diperlukan untuk
-       * mengenal pasti pemilik draft ketika
-       * aplikasi membersihkan data tempatan.
+       * DeleteAccountPage masih perlu
+       * membersihkan draft dan state tempatan
+       * sebelum sesi local dibuang.
        */
     } on AccountDeletionFailure {
       rethrow;
     } on NetworkRequestTimeoutFailure catch (error) {
       throw AccountDeletionFailure(error.message);
-    } on AuthException catch (error) {
-      throw AccountDeletionFailure(_mapAuthenticationError(error.message));
     } on FunctionException catch (error) {
       throw AccountDeletionFailure(_mapFunctionError(error));
     } catch (_) {
@@ -117,14 +109,34 @@ class SupabaseAccountDeletionRepository implements AccountDeletionRepository {
   }
 
   Map<String, dynamic> _readResponseMap(Object? value) {
-    if (value is! Map) {
+    final resolvedValue = _decodePossibleJson(value);
+
+    if (resolvedValue is! Map) {
       throw const AccountDeletionFailure(
         'Pengesahan penghapusan daripada '
         'server tidak sah.',
       );
     }
 
-    return Map<String, dynamic>.from(value);
+    return Map<String, dynamic>.from(resolvedValue);
+  }
+
+  Object? _decodePossibleJson(Object? value) {
+    if (value is! String) {
+      return value;
+    }
+
+    final normalizedValue = value.trim();
+
+    if (normalizedValue.isEmpty) {
+      return value;
+    }
+
+    try {
+      return jsonDecode(normalizedValue);
+    } catch (_) {
+      return value;
+    }
   }
 
   String? _readMessage(Map<dynamic, dynamic> data) {
@@ -137,48 +149,35 @@ class SupabaseAccountDeletionRepository implements AccountDeletionRepository {
     return value.trim();
   }
 
-  String _mapAuthenticationError(String originalMessage) {
-    final message = originalMessage.toLowerCase();
-
-    if (message.contains('invalid login credentials')) {
-      return 'Kata laluan semasa tidak betul.';
-    }
-
-    if (message.contains('email not confirmed')) {
-      return 'E-mel akaun belum disahkan.';
-    }
-
-    if (message.contains('network request failed') ||
-        message.contains('failed host lookup') ||
-        message.contains('connection refused')) {
-      return 'Tidak dapat berhubung dengan '
-          'pelayan. Semak sambungan '
-          'Internet anda.';
-    }
-
-    if (message.contains('session') ||
-        message.contains('token') ||
-        message.contains('not logged in')) {
-      return 'Sesi anda telah tamat. '
-          'Sila log masuk semula.';
-    }
-
-    return 'Kata laluan semasa tidak dapat '
-        'disahkan.';
-  }
-
   String _mapFunctionError(FunctionException error) {
     final serverMessage = _readFunctionMessage(error.details);
+
+    if (error.status == 400) {
+      return serverMessage ??
+          'Maklumat pengesahan '
+              'tidak lengkap.';
+    }
 
     if (error.status == 401) {
       return 'Sesi anda tidak sah atau telah '
           'tamat. Sila log masuk semula.';
     }
 
+    if (error.status == 403) {
+      return serverMessage ?? 'Kata laluan semasa tidak betul.';
+    }
+
+    if (error.status == 409) {
+      return serverMessage ??
+          'Akaun ini tidak dapat disahkan '
+              'menggunakan kata laluan.';
+    }
+
     if (error.status == 429) {
-      return 'Terlalu banyak permintaan. '
-          'Sila tunggu sebentar dan '
-          'cuba semula.';
+      return serverMessage ??
+          'Terlalu banyak percubaan. '
+              'Sila tunggu sebentar dan '
+              'cuba semula.';
     }
 
     if (serverMessage != null) {
@@ -195,8 +194,10 @@ class SupabaseAccountDeletionRepository implements AccountDeletionRepository {
   }
 
   String? _readFunctionMessage(Object? details) {
-    if (details is Map) {
-      final message = details['message'];
+    final resolvedDetails = _decodePossibleJson(details);
+
+    if (resolvedDetails is Map) {
+      final message = resolvedDetails['message'];
 
       if (message is String && message.trim().isNotEmpty) {
         return message.trim();

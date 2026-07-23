@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/router/route_names.dart';
+import '../../../../app/session/app_authenticated_session_controller.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_spacing.dart';
@@ -29,9 +30,8 @@ class _SplashPageState extends ConsumerState<SplashPage> {
 
   Future<void> _resolveInitialRoute() async {
     /*
-     * Memuatkan sesi dan memastikan
-     * Splash Screen dipaparkan sekurang-
-     * kurangnya 1.5 saat.
+     * Muatkan sesi dan paparkan Splash
+     * sekurang-kurangnya 1.5 saat.
      */
     await Future.wait<void>([
       ref
@@ -44,24 +44,44 @@ class _SplashPageState extends ConsumerState<SplashPage> {
       return;
     }
 
-    _hasNavigated = true;
-
     final sessionState = ref.read(authSessionControllerProvider);
 
-    if (sessionState.isAuthenticated) {
-      context.goNamed(RouteNames.home);
+    if (!sessionState.isAuthenticated) {
+      _hasNavigated = true;
+
+      context.goNamed(RouteNames.login);
 
       return;
     }
 
-    context.goNamed(RouteNames.login);
+    /*
+     * Sesi lama masih sah. Kosongkan semua
+     * user-scoped state sebelum Home dibuka.
+     */
+    final preparationError = await ref
+        .read(appAuthenticatedSessionControllerProvider.notifier)
+        .prepareAuthenticatedSession();
+
+    if (!mounted || _hasNavigated) {
+      return;
+    }
+
+    _hasNavigated = true;
+
+    if (preparationError != null) {
+      context.goNamed(RouteNames.login);
+
+      return;
+    }
+
+    context.goNamed(RouteNames.home);
   }
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
 
-    final screenHeight = MediaQuery.of(context).size.height;
+    final screenHeight = MediaQuery.sizeOf(context).height;
 
     final logoSize = screenHeight < 650 ? 205.0 : 245.0;
 
@@ -74,12 +94,6 @@ class _SplashPageState extends ConsumerState<SplashPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                /*
-                 * Logo penuh mempunyai latar
-                 * cerah. Container putih ini
-                 * memastikan logo kekal jelas
-                 * pada Splash Screen biru.
-                 */
                 Container(
                   width: logoSize,
                   height: logoSize,
@@ -90,9 +104,12 @@ class _SplashPageState extends ConsumerState<SplashPage> {
                   ),
                   child: Semantics(
                     image: true,
-                    label: 'Logo Pengajian AM STPM Objektif',
+                    label:
+                        'Logo Pengajian AM '
+                        'STPM Objektif',
                     child: Image.asset(
-                      'assets/branding/app_logo_full.png',
+                      'assets/branding/'
+                      'app_logo_full.png',
                       fit: BoxFit.contain,
                       filterQuality: FilterQuality.high,
                       errorBuilder: (context, error, stackTrace) {
@@ -107,7 +124,8 @@ class _SplashPageState extends ConsumerState<SplashPage> {
                 ),
                 const SizedBox(height: AppSpacing.lg),
                 Text(
-                  'Belajar, Berlatih dan Berjaya',
+                  'Belajar, Berlatih '
+                  'dan Berjaya',
                   textAlign: TextAlign.center,
                   style: textTheme.titleMedium?.copyWith(
                     color: AppColors.textOnPrimary,

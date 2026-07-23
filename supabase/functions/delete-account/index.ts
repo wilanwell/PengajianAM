@@ -11,8 +11,25 @@ const corsHeaders = {
     'POST, OPTIONS',
 }
 
+type JsonObject = Record<string, unknown>
+
+type AuthenticationFailure = {
+  status: number
+  message: string
+}
+
+function isJsonObject(
+  value: unknown,
+): value is JsonObject {
+  return (
+    typeof value === 'object'
+    && value !== null
+    && !Array.isArray(value)
+  )
+}
+
 function jsonResponse(
-  body: Record<string, unknown>,
+  body: JsonObject,
   status = 200,
 ): Response {
   return new Response(
@@ -30,58 +47,204 @@ function jsonResponse(
 
 function readProjectKey(
   jsonEnvironmentName: string,
-  legacyEnvironmentName: string,
+  fallbackEnvironmentNames: string[],
 ): string | null {
   const jsonValue =
     Deno.env.get(jsonEnvironmentName)
 
   if (jsonValue != null) {
     try {
-      const parsed = JSON.parse(
-        jsonValue,
-      ) as Record<string, unknown>
+      const parsed =
+        JSON.parse(jsonValue)
 
-      const defaultValue =
-        parsed.default
+      if (isJsonObject(parsed)) {
+        const defaultValue =
+          parsed.default
 
-      if (
-        typeof defaultValue === 'string'
-        && defaultValue.trim().length > 0
-      ) {
-        return defaultValue.trim()
-      }
-
-      for (
-        const value
-        of Object.values(parsed)
-      ) {
         if (
-          typeof value === 'string'
-          && value.trim().length > 0
+          typeof defaultValue === 'string'
+          && defaultValue.trim().length > 0
         ) {
-          return value.trim()
+          return defaultValue.trim()
+        }
+
+        for (
+          const value
+          of Object.values(parsed)
+        ) {
+          if (
+            typeof value === 'string'
+            && value.trim().length > 0
+          ) {
+            return value.trim()
+          }
         }
       }
     } catch {
       /*
-       * Jangan log kandungan environment
-       * variable kerana ia mungkin
-       * mengandungi secret key.
+       * Jangan log environment variable.
+       * Ia mungkin mengandungi secret.
        */
     }
   }
 
-  const legacyValue =
-    Deno.env.get(legacyEnvironmentName)
-
-  if (
-    legacyValue == null
-    || legacyValue.trim().length === 0
+  for (
+    const environmentName
+    of fallbackEnvironmentNames
   ) {
-    return null
+    const value =
+      Deno.env.get(environmentName)
+
+    if (
+      value != null
+      && value.trim().length > 0
+    ) {
+      return value.trim()
+    }
   }
 
-  return legacyValue.trim()
+  return null
+}
+
+function mapPasswordVerificationFailure(
+  originalMessage: string,
+): AuthenticationFailure {
+  const message =
+    originalMessage.toLowerCase()
+
+  if (
+    message.includes(
+      'invalid login credentials',
+    )
+    || message.includes(
+      'invalid email or password',
+    )
+    || message.includes(
+      'email not confirmed',
+    )
+  ) {
+    return {
+      status: 403,
+      message:
+        'Kata laluan semasa tidak betul.',
+    }
+  }
+
+  if (
+    message.includes('rate limit')
+    || message.includes(
+      'too many requests',
+    )
+    || message.includes(
+      'for security purposes',
+    )
+  ) {
+    return {
+      status: 429,
+      message:
+        'Terlalu banyak percubaan '
+        + 'pengesahan. Sila tunggu '
+        + 'sebentar dan cuba semula.',
+    }
+  }
+
+  return {
+    status: 500,
+    message:
+      'Identiti pengguna tidak dapat '
+      + 'disahkan sekarang. '
+      + 'Sila cuba semula.',
+  }
+}
+
+async function readRequestPassword(
+  request: Request,
+): Promise<
+  | {
+      password: string
+      error: null
+    }
+  | {
+      password: null
+      error: Response
+    }
+> {
+  let payload: unknown
+
+  try {
+    payload = await request.json()
+  } catch {
+    return {
+      password: null,
+      error: jsonResponse(
+        {
+          success: false,
+          message:
+            'Body permintaan tidak sah.',
+        },
+        400,
+      ),
+    }
+  }
+
+  if (!isJsonObject(payload)) {
+    return {
+      password: null,
+      error: jsonResponse(
+        {
+          success: false,
+          message:
+            'Body permintaan tidak sah.',
+        },
+        400,
+      ),
+    }
+  }
+
+  const currentPassword =
+    payload.currentPassword
+
+  if (
+    typeof currentPassword !== 'string'
+    || currentPassword.length === 0
+  ) {
+    return {
+      password: null,
+      error: jsonResponse(
+        {
+          success: false,
+          message:
+            'Masukkan kata laluan semasa.',
+        },
+        400,
+      ),
+    }
+  }
+
+  /*
+   * Had ini mengelakkan body luar biasa besar.
+   *
+   * Jangan trim kata laluan kerana space
+   * mungkin merupakan sebahagian daripadanya.
+   */
+  if (currentPassword.length > 1024) {
+    return {
+      password: null,
+      error: jsonResponse(
+        {
+          success: false,
+          message:
+            'Kata laluan semasa tidak sah.',
+        },
+        400,
+      ),
+    }
+  }
+
+  return {
+    password: currentPassword,
+    error: null,
+  }
 }
 
 Deno.serve(
@@ -102,7 +265,8 @@ Deno.serve(
         {
           success: false,
           message:
-            'Kaedah permintaan tidak dibenarkan.',
+            'Kaedah permintaan '
+            + 'tidak dibenarkan.',
         },
         405,
       )
@@ -129,19 +293,35 @@ Deno.serve(
       )
     }
 
+    const passwordResult =
+      await readRequestPassword(request)
+
+    if (passwordResult.error != null) {
+      return passwordResult.error
+    }
+
+    const currentPassword =
+      passwordResult.password
+
     const supabaseUrl =
       Deno.env.get('SUPABASE_URL')
 
     const publishableKey =
       readProjectKey(
         'SUPABASE_PUBLISHABLE_KEYS',
-        'SUPABASE_ANON_KEY',
+        [
+          'SUPABASE_PUBLISHABLE_KEY',
+          'SUPABASE_ANON_KEY',
+        ],
       )
 
     const secretKey =
       readProjectKey(
         'SUPABASE_SECRET_KEYS',
-        'SUPABASE_SERVICE_ROLE_KEY',
+        [
+          'SUPABASE_SECRET_KEY',
+          'SUPABASE_SERVICE_ROLE_KEY',
+        ],
       )
 
     if (
@@ -150,28 +330,28 @@ Deno.serve(
       || secretKey == null
     ) {
       console.error(
-        'Supabase Edge Function '
-        + 'environment is incomplete.',
+        'Delete-account server '
+        + 'configuration is incomplete.',
       )
 
       return jsonResponse(
         {
           success: false,
           message:
-            'Konfigurasi server tidak lengkap.',
+            'Konfigurasi server '
+            + 'tidak lengkap.',
         },
         500,
       )
     }
 
     /*
-     * Client pengguna menggunakan JWT
-     * daripada Authorization header.
+     * Client pertama menggunakan JWT pemanggil.
      *
-     * Client ini hanya digunakan untuk
-     * menentukan identiti sebenar pemanggil.
+     * Tujuannya ialah mendapatkan identiti
+     * sebenar pemilik access token.
      */
-    const userClient = createClient(
+    const callerClient = createClient(
       supabaseUrl,
       publishableKey,
       {
@@ -184,25 +364,26 @@ Deno.serve(
         auth: {
           persistSession: false,
           autoRefreshToken: false,
+          detectSessionInUrl: false,
         },
       },
     )
 
     const {
-      data: userData,
-      error: userError,
-    } = await userClient.auth.getUser()
+      data: callerData,
+      error: callerError,
+    } = await callerClient.auth.getUser()
 
-    const user = userData.user
+    const callerUser =
+      callerData.user
 
     if (
-      userError != null
-      || user == null
+      callerError != null
+      || callerUser == null
     ) {
       console.error(
-        'Delete account user '
-        + 'verification failed:',
-        userError?.message,
+        'Delete-account caller '
+        + 'verification failed.',
       )
 
       return jsonResponse(
@@ -216,11 +397,112 @@ Deno.serve(
       )
     }
 
+    const callerEmail =
+      callerUser.email?.trim()
+
+    if (
+      callerEmail == null
+      || callerEmail.length === 0
+    ) {
+      return jsonResponse(
+        {
+          success: false,
+          message:
+            'Alamat e-mel akaun '
+            + 'tidak tersedia.',
+        },
+        409,
+      )
+    }
+
     /*
-     * Client admin hanya wujud di server.
+     * Client kedua tidak menggunakan session
+     * pemanggil.
      *
-     * Secret key tidak pernah dihantar
-     * kepada aplikasi Flutter.
+     * Ia menjalankan authentication baharu
+     * menggunakan e-mel akaun daripada JWT
+     * dan kata laluan yang diterima.
+     *
+     * Ini menjadikan semakan kata laluan
+     * berlaku pada server, bukan sekadar
+     * pada Flutter.
+     */
+    const verificationClient =
+      createClient(
+        supabaseUrl,
+        publishableKey,
+        {
+          auth: {
+            persistSession: false,
+            autoRefreshToken: false,
+            detectSessionInUrl: false,
+          },
+        },
+      )
+
+    const {
+      data: verificationData,
+      error: verificationError,
+    } = await verificationClient.auth
+      .signInWithPassword(
+        {
+          email: callerEmail,
+          password: currentPassword,
+        },
+      )
+
+    if (verificationError != null) {
+      const failure =
+        mapPasswordVerificationFailure(
+          verificationError.message,
+        )
+
+      console.error(
+        'Delete-account password '
+        + 'verification failed.',
+      )
+
+      return jsonResponse(
+        {
+          success: false,
+          message: failure.message,
+        },
+        failure.status,
+      )
+    }
+
+    const verifiedUser =
+      verificationData.user
+
+    const verifiedSession =
+      verificationData.session
+
+    if (
+      verifiedUser == null
+      || verifiedSession == null
+      || verifiedUser.id !== callerUser.id
+    ) {
+      console.error(
+        'Delete-account verified '
+        + 'identity did not match caller.',
+      )
+
+      return jsonResponse(
+        {
+          success: false,
+          message:
+            'Pengesahan identiti gagal.',
+        },
+        403,
+      )
+    }
+
+    /*
+     * Client admin hanya menggunakan secret
+     * key pada server.
+     *
+     * Secret tidak pernah dihantar kepada
+     * aplikasi Flutter.
      */
     const adminClient = createClient(
       supabaseUrl,
@@ -229,6 +511,7 @@ Deno.serve(
         auth: {
           persistSession: false,
           autoRefreshToken: false,
+          detectSessionInUrl: false,
         },
       },
     )
@@ -237,21 +520,22 @@ Deno.serve(
       error: deleteError,
     } = await adminClient.auth.admin
       .deleteUser(
-        user.id,
+        callerUser.id,
         false,
       )
 
     if (deleteError != null) {
       console.error(
-        'Delete account failed:',
-        deleteError.message,
+        'Delete-account admin '
+        + 'deletion failed.',
       )
 
       return jsonResponse(
         {
           success: false,
           message:
-            'Akaun tidak dapat dipadamkan. '
+            'Akaun tidak dapat '
+            + 'dipadamkan. '
             + 'Sila cuba semula.',
         },
         500,

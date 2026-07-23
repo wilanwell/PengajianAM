@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../app/session/app_authenticated_session_controller.dart';
 import '../../../../app/router/route_names.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
@@ -40,20 +41,40 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   }
 
   Future<void> _completeLogin() async {
-    if (_isCompletingLogin) {
+    if (_isCompletingLogin || !mounted) {
       return;
     }
 
-    _isCompletingLogin = true;
+    setState(() {
+      _isCompletingLogin = true;
+    });
 
     try {
+      final errorMessage = await ref
+          .read(appAuthenticatedSessionControllerProvider.notifier)
+          .prepareAuthenticatedSession();
+
       if (!mounted) {
+        return;
+      }
+
+      if (errorMessage != null) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text(errorMessage)));
+
         return;
       }
 
       context.goNamed(RouteNames.home);
     } finally {
-      _isCompletingLogin = false;
+      if (mounted) {
+        setState(() {
+          _isCompletingLogin = false;
+        });
+      } else {
+        _isCompletingLogin = false;
+      }
     }
   }
 

@@ -33,7 +33,9 @@ class _HomePageState extends ConsumerState<HomePage> {
     super.initState();
 
     Future<void>.microtask(() {
-      ref.read(homeControllerProvider.notifier).loadDashboard();
+      ref
+          .read(homeControllerProvider.notifier)
+          .loadDashboard(forceRefresh: true);
     });
   }
 
