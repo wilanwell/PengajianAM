@@ -98,10 +98,41 @@ class _HomePageState extends ConsumerState<HomePage> {
       final controller = ref.read(homeControllerProvider.notifier);
 
       controller.reset();
+
       controller.loadDashboard();
     });
 
     final homeState = ref.watch(homeControllerProvider);
+
+    /*
+ * Perlindungan tambahan:
+ *
+ * HomePage mungkin masih berada dalam
+ * navigation stack apabila provider Home
+ * direset atau di-invalidate.
+ *
+ * Dalam keadaan itu, initState tidak akan
+ * dijalankan semula. Oleh itu, muatkan
+ * dashboard apabila state kembali kepada
+ * initial.
+ */
+    if (homeState.status == HomeStatus.initial) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _isLoggingOut) {
+          return;
+        }
+
+        final latestHomeState = ref.read(homeControllerProvider);
+
+        if (latestHomeState.status != HomeStatus.initial) {
+          return;
+        }
+
+        ref
+            .read(homeControllerProvider.notifier)
+            .loadDashboard(forceRefresh: true);
+      });
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -160,6 +191,7 @@ class _HomeContent extends StatelessWidget {
   const _HomeContent({required this.summary, required this.onRefresh});
 
   final HomeSummary summary;
+
   final Future<void> Function() onRefresh;
 
   @override
@@ -219,6 +251,8 @@ class _PerformanceSummaryGrid extends StatelessWidget {
             ? constraints.maxWidth
             : (constraints.maxWidth - gap) / 2;
 
+        final weeklyRank = summary.weeklyRank;
+
         return Wrap(
           spacing: gap,
           runSpacing: gap,
@@ -258,9 +292,20 @@ class _PerformanceSummaryGrid extends StatelessWidget {
               child: HomeStatCard(
                 icon: Icons.emoji_events_outlined,
                 label: 'Ranking Mingguan',
-                value: '#${summary.weeklyRank}',
+                value: weeklyRank == null ? 'Sertai' : '#$weeklyRank',
                 iconColor: AppColors.bronze,
                 iconBackgroundColor: AppColors.warningBackground,
+                semanticLabel: weeklyRank == null
+                    ? 'Sertai leaderboard '
+                          'untuk mendapatkan '
+                          'ranking mingguan'
+                    : 'Buka leaderboard. '
+                          'Ranking mingguan '
+                          'anda ialah nombor '
+                          '$weeklyRank',
+                onTap: () {
+                  context.goNamed(RouteNames.leaderboard);
+                },
               ),
             ),
           ],
@@ -294,7 +339,9 @@ class _QuickActionsGrid extends StatelessWidget {
               child: QuickActionCard(
                 icon: Icons.menu_book_rounded,
                 title: 'Topik',
-                description: 'Pilih topik pembelajaran',
+                description:
+                    'Pilih topik '
+                    'pembelajaran',
                 onTap: () {
                   context.goNamed(RouteNames.topics);
                 },
@@ -316,7 +363,9 @@ class _QuickActionsGrid extends StatelessWidget {
               child: QuickActionCard(
                 icon: Icons.emoji_events_rounded,
                 title: 'Ranking',
-                description: 'Lihat kedudukan mingguan',
+                description:
+                    'Lihat kedudukan '
+                    'mingguan',
                 onTap: () {
                   context.goNamed(RouteNames.leaderboard);
                 },
@@ -327,7 +376,9 @@ class _QuickActionsGrid extends StatelessWidget {
               child: QuickActionCard(
                 icon: Icons.person_rounded,
                 title: 'Profil',
-                description: 'Semak kemajuan dan akaun',
+                description:
+                    'Semak kemajuan '
+                    'dan akaun',
                 onTap: () {
                   context.goNamed(RouteNames.profile);
                 },
@@ -353,6 +404,7 @@ class _HomeErrorView extends StatelessWidget {
   const _HomeErrorView({required this.message, required this.onRetry});
 
   final String message;
+
   final VoidCallback onRetry;
 
   @override

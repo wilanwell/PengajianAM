@@ -14,6 +14,7 @@ import '../../features/quiz/presentation/controllers/quiz_history_controller.dar
 import '../../features/quiz/presentation/controllers/quiz_session_controller.dart';
 import '../../features/quiz/presentation/controllers/quiz_setup_controller.dart';
 import '../../features/topics/presentation/controllers/topics_controller.dart';
+import '../../features/leaderboard/presentation/controllers/leaderboard_preference_controller.dart';
 
 final appLogoutControllerProvider = NotifierProvider<AppLogoutController, bool>(
   AppLogoutController.new,
@@ -100,6 +101,8 @@ class AppLogoutController extends Notifier<bool> {
      * semasa.
      */
     ref.invalidate(leaderboardControllerProvider);
+
+    ref.invalidate(leaderboardPreferenceControllerProvider);
 
     ref.invalidate(profileControllerProvider);
   }

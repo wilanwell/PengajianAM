@@ -6,6 +6,7 @@ import '../../features/authentication/presentation/controllers/auth_session_cont
 import '../../features/authentication/presentation/controllers/auth_session_state.dart';
 import '../../features/home/presentation/controllers/home_controller.dart';
 import '../../features/leaderboard/presentation/controllers/leaderboard_controller.dart';
+import '../../features/leaderboard/presentation/controllers/leaderboard_preference_controller.dart';
 import '../../features/profile/presentation/controllers/profile_controller.dart';
 import '../../features/progress/presentation/controllers/user_progress_controller.dart';
 import '../../features/quiz/presentation/controllers/quiz_history_controller.dart';
@@ -33,7 +34,7 @@ class AppAuthenticatedSessionController extends Notifier<bool> {
   /// Menyediakan state aplikasi selepas
   /// authentication berjaya.
   ///
-  /// Null bermaksud berjaya.
+  /// Null bermaksud proses berjaya.
   /// String bermaksud mesej error.
   Future<String?> prepareAuthenticatedSession() {
     final currentPreparation = _inFlightPreparation;
@@ -65,10 +66,8 @@ class AppAuthenticatedSessionController extends Notifier<bool> {
        * AuthSessionController selesai
        * mewujudkan sesi authenticated.
        *
-       * Oleh itu, kita tidak perlu membaca
-       * SupabaseClient secara terus di sini.
-       * Ini juga memastikan widget test boleh
-       * menggunakan fake auth repository.
+       * Oleh itu, SupabaseClient tidak perlu
+       * dibaca secara terus di sini.
        */
       final authState = ref.read(authSessionControllerProvider);
 
@@ -89,8 +88,7 @@ class AppAuthenticatedSessionController extends Notifier<bool> {
        * menyimpan data akaun sebelumnya.
        *
        * HomePage akan memuatkan data baharu
-       * selepas navigasi menggunakan
-       * forceRefresh: true.
+       * menggunakan forceRefresh.
        */
       _invalidateUserScopedState();
 
@@ -113,6 +111,12 @@ class AppAuthenticatedSessionController extends Notifier<bool> {
     ref.invalidate(topicsControllerProvider);
 
     ref.invalidate(leaderboardControllerProvider);
+
+    /*
+     * Preference leaderboard juga merupakan
+     * data khusus kepada pengguna semasa.
+     */
+    ref.invalidate(leaderboardPreferenceControllerProvider);
 
     ref.invalidate(profileControllerProvider);
 

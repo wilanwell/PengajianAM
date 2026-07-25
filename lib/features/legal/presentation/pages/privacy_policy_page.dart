@@ -60,7 +60,7 @@ class PrivacyPolicyPage extends StatelessWidget {
                   Text(
                     'Versi '
                     '${SupportInformation.privacyPolicyVersion} '
-                    '• Berkuat kuasa '
+                    '| Berkuat kuasa '
                     '${SupportInformation.effectiveDate}',
                     textAlign: TextAlign.center,
                     style: textTheme.bodySmall?.copyWith(
@@ -71,6 +71,7 @@ class PrivacyPolicyPage extends StatelessWidget {
               ),
             ),
             const SizedBox(height: AppSpacing.lg),
+
             const LegalSectionCard(
               number: '1',
               title: 'Pengenalan',
@@ -85,11 +86,13 @@ class PrivacyPolicyPage extends StatelessWidget {
                   'Pengumpulan data dihadkan kepada '
                   'maklumat yang diperlukan untuk '
                   'menyediakan fungsi pembelajaran, '
-                  'akaun dan keselamatan aplikasi.',
+                  'akaun, leaderboard dan '
+                  'keselamatan aplikasi.',
                 ),
               ],
             ),
             const SizedBox(height: AppSpacing.md),
+
             const LegalSectionCard(
               number: '2',
               title: 'Data yang Dikumpul',
@@ -113,8 +116,22 @@ class PrivacyPolicyPage extends StatelessWidget {
                 ),
                 LegalBullet(
                   text:
-                      'Maklumat leaderboard seperti '
-                      'nama paparan, ranking dan XP.',
+                      'XP mingguan dan bulanan yang '
+                      'dikira daripada percubaan kuiz '
+                      'dalam tempoh semasa.',
+                ),
+                LegalBullet(
+                  text:
+                      'Pilihan penyertaan leaderboard, '
+                      'tarikh persetujuan dan versi '
+                      'persetujuan yang diterima.',
+                ),
+                LegalBullet(
+                  text:
+                      'Nama samaran, ranking dan XP '
+                      'tempoh semasa bagi pengguna '
+                      'yang memilih untuk menyertai '
+                      'leaderboard.',
                 ),
                 LegalBullet(
                   text:
@@ -130,6 +147,7 @@ class PrivacyPolicyPage extends StatelessWidget {
               ],
             ),
             const SizedBox(height: AppSpacing.md),
+
             const LegalSectionCard(
               number: '3',
               title: 'Data yang Tidak Diminta',
@@ -141,15 +159,21 @@ class PrivacyPolicyPage extends StatelessWidget {
                   'SMS atau fail peribadi pengguna.',
                 ),
                 LegalParagraph(
-                  'Status sambungan Internet diperiksa '
-                  'untuk memaparkan amaran di luar talian (offline), '
-                  'tetapi aplikasi tidak menggunakan '
-                  'status tersebut untuk menentukan '
-                  'lokasi pengguna.',
+                  'Status sambungan Internet boleh '
+                  'diperiksa untuk memaparkan amaran '
+                  'offline, tetapi tidak digunakan '
+                  'untuk menentukan lokasi pengguna.',
+                ),
+                LegalParagraph(
+                  'Pengguna tidak sepatutnya '
+                  'memasukkan maklumat sensitif yang '
+                  'tidak diperlukan ke dalam nama '
+                  'paparan.',
                 ),
               ],
             ),
             const SizedBox(height: AppSpacing.md),
+
             const LegalSectionCard(
               number: '4',
               title: 'Tujuan Pemprosesan',
@@ -167,12 +191,26 @@ class PrivacyPolicyPage extends StatelessWidget {
                 LegalBullet(
                   text:
                       'Mengira XP, progress, '
-                      'pencapaian dan ranking.',
+                      'pencapaian dan statistik '
+                      'pembelajaran.',
                 ),
                 LegalBullet(
                   text:
-                      'Memaparkan sejarah dan analitik '
-                      'pembelajaran.',
+                      'Mengira XP mingguan dan '
+                      'bulanan berdasarkan tempoh '
+                      'semasa.',
+                ),
+                LegalBullet(
+                  text:
+                      'Menentukan ranking apabila '
+                      'pengguna memberikan '
+                      'persetujuan untuk menyertai '
+                      'leaderboard.',
+                ),
+                LegalBullet(
+                  text:
+                      'Memaparkan sejarah dan '
+                      'analitik pembelajaran.',
                 ),
                 LegalBullet(
                   text:
@@ -188,31 +226,32 @@ class PrivacyPolicyPage extends StatelessWidget {
               ],
             ),
             const SizedBox(height: AppSpacing.md),
+
             const LegalSectionCard(
               number: '5',
               title: 'Penyimpanan dan Pemprosesan',
               children: [
                 LegalParagraph(
-                  'Data akaun serta pembelajaran '
-                  'disimpan dan diproses melalui '
+                  'Data akaun dan pembelajaran '
+                  'disimpan serta diproses melalui '
                   'Supabase sebagai penyedia '
                   'perkhidmatan backend.',
                 ),
                 LegalParagraph(
-                  'Draft kuiz serta tetapan tertentu '
-                  'boleh disimpan secara tempatan pada '
-                  'peranti pengguna.',
+                  'Draft kuiz dan tetapan tertentu '
+                  'boleh disimpan secara tempatan '
+                  'pada peranti pengguna.',
                 ),
                 LegalParagraph(
-                  'Penggunaan penyedia perkhidmatan '
-                  'tidak memberikan mereka kebenaran '
-                  'untuk menggunakan data bagi tujuan '
-                  'mereka sendiri di luar penyediaan '
-                  'perkhidmatan tersebut.',
+                  'Penyedia perkhidmatan hanya '
+                  'digunakan untuk menjalankan '
+                  'fungsi teknikal yang diperlukan '
+                  'oleh aplikasi.',
                 ),
               ],
             ),
             const SizedBox(height: AppSpacing.md),
+
             const LegalSectionCard(
               number: '6',
               title: 'Perkongsian Data',
@@ -237,24 +276,63 @@ class PrivacyPolicyPage extends StatelessWidget {
               ],
             ),
             const SizedBox(height: AppSpacing.md),
+
             const LegalSectionCard(
               number: '7',
-              title: 'Leaderboard',
+              title: 'Leaderboard dan Persetujuan',
               children: [
                 LegalParagraph(
-                  'Leaderboard boleh memaparkan nama '
-                  'paparan, XP dan kedudukan pengguna '
-                  'kepada pengguna aplikasi yang '
-                  'telah log masuk.',
+                  'Penyertaan leaderboard adalah '
+                  'pilihan. Pengguna tidak dimasukkan '
+                  'ke dalam ranking secara '
+                  'automatik.',
                 ),
                 LegalParagraph(
-                  'Alamat e-mel, kata laluan dan '
-                  'maklumat authentication tidak '
-                  'dipaparkan pada leaderboard.',
+                  'Pengguna masih boleh melihat '
+                  'leaderboard tanpa menyertainya.',
+                ),
+                LegalParagraph(
+                  'Apabila pengguna memilih untuk '
+                  'menyertai, XP mingguan dan '
+                  'bulanan bagi tempoh semasa akan '
+                  'digunakan untuk menentukan '
+                  'ranking.',
+                ),
+                LegalParagraph(
+                  'Pengguna lain hanya melihat nama '
+                  'samaran seperti Pelajar-A1B2. '
+                  'Nama paparan sebenar hanya '
+                  'ditunjukkan kepada pemilik akaun '
+                  'sendiri.',
+                ),
+                LegalParagraph(
+                  'Alamat e-mel, kata laluan, token '
+                  'authentication dan maklumat log '
+                  'masuk tidak dipaparkan pada '
+                  'leaderboard.',
+                ),
+                LegalParagraph(
+                  'Pengguna boleh berhenti menyertai '
+                  'pada bila-bila masa melalui '
+                  'halaman Tetapan.',
+                ),
+                LegalParagraph(
+                  'Berhenti menyertai akan '
+                  'mengeluarkan pengguna daripada '
+                  'ranking. Tindakan tersebut tidak '
+                  'memadam XP, progress, sejarah '
+                  'kuiz atau analitik pembelajaran.',
+                ),
+                LegalParagraph(
+                  'Perubahan penyertaan boleh '
+                  'direkodkan sebagai event '
+                  'persetujuan bagi memastikan '
+                  'pilihan pengguna dapat diaudit.',
                 ),
               ],
             ),
             const SizedBox(height: AppSpacing.md),
+
             const LegalSectionCard(
               number: '8',
               title: 'Keselamatan Data',
@@ -267,6 +345,13 @@ class PrivacyPolicyPage extends StatelessWidget {
                   'atau penyalahgunaan data.',
                 ),
                 LegalParagraph(
+                  'Operasi sensitif seperti '
+                  'pengesahan penghapusan akaun, '
+                  'pengiraan keputusan kuiz dan '
+                  'pengiraan ranking dijalankan pada '
+                  'bahagian server.',
+                ),
+                LegalParagraph(
                   'Walau bagaimanapun, tiada sistem '
                   'elektronik atau penghantaran data '
                   'boleh dijamin selamat sepenuhnya.',
@@ -274,15 +359,17 @@ class PrivacyPolicyPage extends StatelessWidget {
               ],
             ),
             const SizedBox(height: AppSpacing.md),
+
             const LegalSectionCard(
               number: '9',
               title: 'Penyimpanan dan Penghapusan',
               children: [
                 LegalParagraph(
                   'Data disimpan selama diperlukan '
-                  'untuk menyediakan akaun dan fungsi '
-                  'aplikasi, atau selama diperlukan '
-                  'untuk memenuhi kewajipan yang sah.',
+                  'untuk menyediakan akaun dan '
+                  'fungsi aplikasi, atau selama '
+                  'diperlukan untuk memenuhi '
+                  'kewajipan yang sah.',
                 ),
                 LegalParagraph(
                   'Fungsi Reset Data Pembelajaran '
@@ -291,14 +378,24 @@ class PrivacyPolicyPage extends StatelessWidget {
                   'memadam akaun authentication.',
                 ),
                 LegalParagraph(
-                  'Permintaan penghapusan akaun dan '
-                  'data berkaitan boleh dihantar '
-                  'kepada e-mel privasi yang '
-                  'dinyatakan di bawah.',
+                  'Reset Data Pembelajaran tidak '
+                  'mengubah pilihan privasi '
+                  'leaderboard kerana pilihan '
+                  'tersebut diurus secara '
+                  'berasingan.',
+                ),
+                LegalParagraph(
+                  'Penghapusan akaun akan memadam '
+                  'profil, progress, sejarah kuiz, '
+                  'sesi kuiz, preference '
+                  'leaderboard dan rekod '
+                  'persetujuan yang dikaitkan dengan '
+                  'akaun.',
                 ),
               ],
             ),
             const SizedBox(height: AppSpacing.md),
+
             const LegalSectionCard(
               number: '10',
               title: 'Pilihan dan Hak Pengguna',
@@ -307,8 +404,24 @@ class PrivacyPolicyPage extends StatelessWidget {
                 LegalBullet(text: 'Mereset data pembelajaran.'),
                 LegalBullet(
                   text:
+                      'Memilih untuk menyertai atau '
+                      'berhenti menyertai '
+                      'leaderboard.',
+                ),
+                LegalBullet(
+                  text:
+                      'Melihat leaderboard tanpa '
+                      'mempunyai ranking sendiri.',
+                ),
+                LegalBullet(
+                  text:
                       'Meminta akses, pembetulan atau '
                       'penghapusan data peribadi.',
+                ),
+                LegalBullet(
+                  text:
+                      'Memadam akaun dan data '
+                      'berkaitan melalui aplikasi.',
                 ),
                 LegalBullet(
                   text:
@@ -318,16 +431,18 @@ class PrivacyPolicyPage extends StatelessWidget {
               ],
             ),
             const SizedBox(height: AppSpacing.md),
+
             const LegalSectionCard(
               number: '11',
               title: 'Pengguna Muda',
               children: [
                 LegalParagraph(
                   'Aplikasi direka untuk pelajar '
-                  'STPM. Pengguna yang masih di bawah '
-                  'umur dewasa digalakkan menggunakan '
-                  'aplikasi dengan pengetahuan ibu '
-                  'bapa atau penjaga.',
+                  'STPM. Pengguna yang masih di '
+                  'bawah umur dewasa digalakkan '
+                  'menggunakan aplikasi dengan '
+                  'pengetahuan ibu bapa atau '
+                  'penjaga.',
                 ),
                 LegalParagraph(
                   'Pengguna tidak perlu memberikan '
@@ -338,32 +453,41 @@ class PrivacyPolicyPage extends StatelessWidget {
               ],
             ),
             const SizedBox(height: AppSpacing.md),
+
             const LegalSectionCard(
               number: '12',
               title: 'Perubahan Dasar Privasi',
               children: [
                 LegalParagraph(
                   'Dasar ini boleh dikemas kini '
-                  'apabila ciri, penyedia perkhidmatan '
-                  'atau amalan pemprosesan data '
-                  'berubah.',
+                  'apabila ciri, penyedia '
+                  'perkhidmatan atau amalan '
+                  'pemprosesan data berubah.',
                 ),
                 LegalParagraph(
                   'Tarikh berkuat kuasa dan nombor '
                   'versi akan dikemas kini apabila '
                   'terdapat perubahan penting.',
                 ),
+                LegalParagraph(
+                  'Persetujuan baharu boleh diminta '
+                  'sekiranya perubahan penting '
+                  'menjejaskan cara data leaderboard '
+                  'digunakan.',
+                ),
               ],
             ),
             const SizedBox(height: AppSpacing.md),
+
             LegalSectionCard(
               number: '13',
               title: 'Hubungi Kami',
               children: const [
                 LegalParagraph(
-                  'Pertanyaan, permintaan akses atau '
-                  'permintaan penghapusan data boleh '
-                  'dihantar kepada:',
+                  'Pertanyaan privasi, permintaan '
+                  'akses atau permintaan '
+                  'penghapusan data boleh dihantar '
+                  'kepada:',
                 ),
                 LegalContactBox(
                   label: 'Developer/Penerbit',

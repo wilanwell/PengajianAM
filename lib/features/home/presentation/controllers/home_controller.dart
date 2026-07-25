@@ -102,12 +102,30 @@ class HomeController extends Notifier<HomeState> {
 
       final currentUserEntry = leaderboardState.currentUserEntry;
 
-      if (currentUserEntry == null) {
+      /*
+ * Pengguna opt-in wajib mempunyai
+ * current-user ranking.
+ *
+ * Pengguna opt-out memang tidak akan
+ * mempunyai current-user entry.
+ */
+      if (leaderboardState.isParticipating && currentUserEntry == null) {
         state = const HomeState(
           status: HomeStatus.failure,
           errorMessage:
               'Kedudukan mingguan pengguna '
               'tidak dapat dikenal pasti.',
+        );
+
+        return;
+      }
+
+      if (!leaderboardState.isParticipating && currentUserEntry != null) {
+        state = const HomeState(
+          status: HomeStatus.failure,
+          errorMessage:
+              'Status penyertaan leaderboard '
+              'tidak sepadan.',
         );
 
         return;
@@ -138,7 +156,7 @@ class HomeController extends Notifier<HomeState> {
         completedQuizzes: progress.completedQuizzes,
         averageScore: progress.averageScore,
         totalXp: progress.totalXp,
-        weeklyRank: currentUserEntry.rank,
+        weeklyRank: currentUserEntry?.rank,
         currentTopic: currentTopic.title,
         currentTopicProgress: currentTopic.progress,
         completedTopics: completedTopics,

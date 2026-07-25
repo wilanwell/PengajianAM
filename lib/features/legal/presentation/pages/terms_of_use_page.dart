@@ -61,7 +61,7 @@ class TermsOfUsePage extends StatelessWidget {
                   Text(
                     'Versi '
                     '${SupportInformation.termsVersion} '
-                    '• Berkuat kuasa '
+                    '| Berkuat kuasa '
                     '${SupportInformation.effectiveDate}',
                     textAlign: TextAlign.center,
                     style: textTheme.bodySmall?.copyWith(
@@ -72,6 +72,7 @@ class TermsOfUsePage extends StatelessWidget {
               ),
             ),
             const SizedBox(height: AppSpacing.lg),
+
             const LegalSectionCard(
               number: '1',
               title: 'Penerimaan Terma',
@@ -92,6 +93,7 @@ class TermsOfUsePage extends StatelessWidget {
               ],
             ),
             const SizedBox(height: AppSpacing.md),
+
             const LegalSectionCard(
               number: '2',
               title: 'Tujuan Aplikasi',
@@ -111,12 +113,13 @@ class TermsOfUsePage extends StatelessWidget {
                   text:
                       'Keputusan kuiz hanya digunakan '
                       'sebagai petunjuk pembelajaran '
-                      'dan bukan keputusan peperiksaan '
-                      'rasmi.',
+                      'dan bukan keputusan '
+                      'peperiksaan rasmi.',
                 ),
               ],
             ),
             const SizedBox(height: AppSpacing.md),
+
             const LegalSectionCard(
               number: '3',
               title: 'Akaun Pengguna',
@@ -135,7 +138,8 @@ class TermsOfUsePage extends StatelessWidget {
                 LegalBullet(
                   text:
                       'Pengguna bertanggungjawab '
-                      'menjaga kerahsiaan kata laluan.',
+                      'menjaga kerahsiaan kata '
+                      'laluan.',
                 ),
                 LegalBullet(
                   text:
@@ -146,6 +150,7 @@ class TermsOfUsePage extends StatelessWidget {
               ],
             ),
             const SizedBox(height: AppSpacing.md),
+
             const LegalSectionCard(
               number: '4',
               title: 'Penggunaan yang Dibenarkan',
@@ -170,13 +175,15 @@ class TermsOfUsePage extends StatelessWidget {
                 ),
                 LegalBullet(
                   text:
-                      'Jangan menggunakan automation '
-                      'atau kaedah lain yang boleh '
-                      'mengganggu prestasi sistem.',
+                      'Jangan menggunakan automation, '
+                      'script atau kaedah lain yang '
+                      'boleh mengganggu prestasi '
+                      'sistem.',
                 ),
               ],
             ),
             const SizedBox(height: AppSpacing.md),
+
             LegalSectionCard(
               number: '5',
               title: 'Penafian Kandungan',
@@ -185,21 +192,23 @@ class TermsOfUsePage extends StatelessWidget {
                 LegalParagraph(
                   'Walaupun usaha munasabah dibuat '
                   'untuk memastikan kandungan tepat, '
-                  'tiada jaminan bahawa semua soalan, '
-                  'penerangan atau maklumat akan '
-                  'sentiasa bebas daripada kesilapan.',
+                  'tiada jaminan bahawa semua '
+                  'soalan, penerangan atau maklumat '
+                  'akan sentiasa bebas daripada '
+                  'kesilapan.',
                 ),
               ],
             ),
             const SizedBox(height: AppSpacing.md),
+
             const LegalSectionCard(
               number: '6',
-              title: 'Progress, XP dan Ranking',
+              title: 'Progress, XP dan Leaderboard',
               children: [
                 LegalParagraph(
                   'XP, pencapaian, progress, '
                   'analitik dan leaderboard adalah '
-                  'ciri pembelajaran serta motivasi.',
+                  'ciri pembelajaran dan motivasi.',
                 ),
                 LegalParagraph(
                   'Nilai tersebut tidak mempunyai '
@@ -207,17 +216,83 @@ class TermsOfUsePage extends StatelessWidget {
                   'ditukar kepada wang, hadiah atau '
                   'kelayakan akademik rasmi.',
                 ),
+                LegalParagraph(
+                  'Penyertaan leaderboard adalah '
+                  'pilihan. Pengguna boleh melihat '
+                  'leaderboard tanpa menyertainya.',
+                ),
+                LegalParagraph(
+                  'Apabila pengguna menyertai, XP '
+                  'mingguan dan bulanan bagi tempoh '
+                  'semasa digunakan untuk menentukan '
+                  'ranking.',
+                ),
+                LegalParagraph(
+                  'Ranking boleh berubah apabila XP, '
+                  'jumlah peserta atau sempadan '
+                  'tempoh mingguan dan bulanan '
+                  'berubah.',
+                ),
+                LegalParagraph(
+                  'Pengguna lain hanya melihat nama '
+                  'samaran. Nama paparan sebenar '
+                  'hanya ditunjukkan kepada pemilik '
+                  'akaun sendiri.',
+                ),
+                LegalParagraph(
+                  'Pengguna boleh berhenti menyertai '
+                  'leaderboard pada bila-bila masa. '
+                  'Berhenti menyertai tidak memadam '
+                  'XP atau progress pembelajaran.',
+                ),
               ],
             ),
             const SizedBox(height: AppSpacing.md),
+
             const LegalSectionCard(
               number: '7',
+              title: 'Integriti Kuiz dan Ranking',
+              children: [
+                LegalBullet(
+                  text:
+                      'Pengguna tidak boleh '
+                      'memanipulasi jawapan, masa '
+                      'kuiz, XP atau ranking.',
+                ),
+                LegalBullet(
+                  text:
+                      'Pengguna tidak boleh '
+                      'mengeksploitasi kelemahan '
+                      'sistem untuk memperoleh XP '
+                      'atau ranking secara tidak sah.',
+                ),
+                LegalBullet(
+                  text:
+                      'Pengguna tidak boleh '
+                      'menggunakan bot, script atau '
+                      'automation untuk menghantar '
+                      'percubaan kuiz.',
+                ),
+                LegalParagraph(
+                  'XP, percubaan atau ranking yang '
+                  'diperoleh melalui penyalahgunaan '
+                  'boleh dibetulkan, dibatalkan atau '
+                  'dikeluarkan daripada '
+                  'leaderboard.',
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.md),
+
+            const LegalSectionCard(
+              number: '8',
               title: 'Ketersediaan Perkhidmatan',
               children: [
                 LegalParagraph(
                   'Sesetengah fungsi memerlukan '
-                  'sambungan Internet dan perkhidmatan '
-                  'backend pihak ketiga.',
+                  'sambungan Internet dan '
+                  'perkhidmatan backend pihak '
+                  'ketiga.',
                 ),
                 LegalParagraph(
                   'Perkhidmatan mungkin tergendala '
@@ -229,15 +304,16 @@ class TermsOfUsePage extends StatelessWidget {
               ],
             ),
             const SizedBox(height: AppSpacing.md),
+
             const LegalSectionCard(
-              number: '8',
+              number: '9',
               title: 'Harta Intelek',
               children: [
                 LegalParagraph(
                   'Reka bentuk aplikasi, logo, code '
-                  'dan soalan latihan original '
-                  'adalah milik developer atau '
-                  'digunakan dengan hak yang sah.',
+                  'dan kandungan original adalah '
+                  'milik developer atau digunakan '
+                  'dengan hak yang sah.',
                 ),
                 LegalParagraph(
                   'Pengguna diberikan hak terhad '
@@ -248,37 +324,70 @@ class TermsOfUsePage extends StatelessWidget {
               ],
             ),
             const SizedBox(height: AppSpacing.md),
+
             const LegalSectionCard(
-              number: '9',
+              number: '10',
               title: 'Had Tanggungjawab',
               children: [
                 LegalParagraph(
                   'Aplikasi disediakan atas dasar '
-                  '“sebagaimana adanya”. Developer '
-                  'tidak menjamin bahawa penggunaan '
-                  'aplikasi akan menghasilkan markah '
-                  'atau keputusan peperiksaan '
-                  'tertentu.',
+                  'sebagaimana adanya dan '
+                  'sebagaimana tersedia.',
                 ),
                 LegalParagraph(
-                  'Setakat yang dibenarkan oleh '
-                  'undang-undang, developer tidak '
-                  'bertanggungjawab terhadap kerugian '
-                  'yang berpunca daripada penggunaan '
-                  'atau ketidakupayaan menggunakan '
-                  'aplikasi.',
+                  'Developer tidak menjamin bahawa '
+                  'aplikasi akan sentiasa tersedia, '
+                  'bebas daripada kesilapan atau '
+                  'sesuai untuk setiap keperluan '
+                  'pengguna.',
+                ),
+                LegalParagraph(
+                  'Pengguna bertanggungjawab '
+                  'menggunakan keputusan kuiz dan '
+                  'analitik sebagai panduan '
+                  'pembelajaran sahaja.',
                 ),
               ],
             ),
             const SizedBox(height: AppSpacing.md),
+
             const LegalSectionCard(
-              number: '10',
+              number: '11',
+              title: 'Reset dan Penghapusan Akaun',
+              children: [
+                LegalParagraph(
+                  'Pengguna boleh mereset data '
+                  'pembelajaran tanpa memadam akaun.',
+                ),
+                LegalParagraph(
+                  'Reset Data Pembelajaran tidak '
+                  'mengubah pilihan penyertaan '
+                  'leaderboard.',
+                ),
+                LegalParagraph(
+                  'Pengguna boleh memadam akaun '
+                  'melalui fungsi penghapusan dalam '
+                  'aplikasi.',
+                ),
+                LegalParagraph(
+                  'Penghapusan akaun adalah kekal '
+                  'dan merangkumi data pembelajaran '
+                  'serta data leaderboard yang '
+                  'dikaitkan dengan akaun.',
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.md),
+
+            const LegalSectionCard(
+              number: '12',
               title: 'Perubahan Terma',
               children: [
                 LegalParagraph(
                   'Terma ini boleh dikemas kini '
-                  'apabila fungsi, operasi atau '
-                  'keperluan undang-undang berubah.',
+                  'apabila fungsi aplikasi, amalan '
+                  'operasi atau keperluan berkaitan '
+                  'berubah.',
                 ),
                 LegalParagraph(
                   'Tarikh berkuat kuasa dan nombor '
@@ -288,13 +397,15 @@ class TermsOfUsePage extends StatelessWidget {
               ],
             ),
             const SizedBox(height: AppSpacing.md),
+
             LegalSectionCard(
-              number: '11',
-              title: 'Hubungi Developer',
+              number: '13',
+              title: 'Hubungi Kami',
               children: const [
                 LegalParagraph(
-                  'Pertanyaan berkaitan penggunaan '
-                  'aplikasi boleh dihantar kepada:',
+                  'Pertanyaan berkaitan aplikasi '
+                  'atau Terma Penggunaan boleh '
+                  'dihantar kepada:',
                 ),
                 LegalContactBox(
                   label: 'Developer/Penerbit',

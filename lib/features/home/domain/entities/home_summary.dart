@@ -1,5 +1,6 @@
-/// Represents the summarized learning information displayed
-/// on the student's home dashboard.
+/// Represents the summarized learning
+/// information displayed on the student's
+/// home dashboard.
 class HomeSummary {
   const HomeSummary({
     required this.displayName,
@@ -18,13 +19,24 @@ class HomeSummary {
        );
 
   final String displayName;
+
   final String semesterLabel;
+
   final int completedQuizzes;
+
   final double averageScore;
+
   final int totalXp;
-  final int weeklyRank;
+
+  /// Null bermaksud pengguna tidak
+  /// menyertai leaderboard.
+  final int? weeklyRank;
+
   final String currentTopic;
+
   final double currentTopicProgress;
+
   final int completedTopics;
+
   final int totalTopics;
 }

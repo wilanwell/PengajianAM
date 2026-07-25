@@ -12,6 +12,7 @@ class SupabaseLeaderboardRepository implements LeaderboardRepository {
   const SupabaseLeaderboardRepository(this._client, this._requestExecutor);
 
   final SupabaseClient _client;
+
   final NetworkRequestExecutor _requestExecutor;
 
   @override
@@ -30,7 +31,7 @@ class SupabaseLeaderboardRepository implements LeaderboardRepository {
       final response = await _requestExecutor.run<Object?>(
         request: () {
           return _client.rpc(
-            'get_leaderboard',
+            'get_leaderboard_v2',
             params: {'p_period': period.name, 'p_limit': limit},
           );
         },
@@ -46,6 +47,42 @@ class SupabaseLeaderboardRepository implements LeaderboardRepository {
           'server tidak sepadan.',
         );
       }
+
+      final generatedAt = _readDateTime(responseMap, 'generatedAt');
+
+      final periodStartsAt = _readDateTime(responseMap, 'periodStartsAt');
+
+      final periodEndsAt = _readDateTime(responseMap, 'periodEndsAt');
+
+      if (!periodEndsAt.isAfter(periodStartsAt)) {
+        throw const LeaderboardFailure(
+          'Julat masa leaderboard '
+          'daripada server tidak sah.',
+        );
+      }
+
+      final timezone = _readRequiredString(responseMap, 'timezone');
+
+      if (timezone != 'Asia/Kuala_Lumpur') {
+        throw const LeaderboardFailure(
+          'Timezone leaderboard daripada '
+          'server tidak sah.',
+        );
+      }
+
+      final isParticipating = _readBoolean(responseMap, 'isParticipating');
+
+      final currentUserXp = _readInteger(
+        responseMap,
+        'currentUserXp',
+        minimum: 0,
+      );
+
+      final participantCount = _readInteger(
+        responseMap,
+        'participantCount',
+        minimum: 0,
+      );
 
       final rawEntries = responseMap['entries'];
 
@@ -69,13 +106,6 @@ class SupabaseLeaderboardRepository implements LeaderboardRepository {
         entries.add(_readLeaderboardEntry(Map<String, dynamic>.from(rawEntry)));
       }
 
-      if (entries.isEmpty) {
-        throw const LeaderboardFailure(
-          'Leaderboard belum mempunyai '
-          'peserta.',
-        );
-      }
-
       final entryIds = entries.map((entry) => entry.userId).toSet();
 
       if (entryIds.length != entries.length) {
@@ -94,26 +124,43 @@ class SupabaseLeaderboardRepository implements LeaderboardRepository {
         );
       }
 
-      final currentUserCount = entries.where((entry) {
-        return entry.isCurrentUser;
-      }).length;
+      final currentUserEntries = entries
+          .where((entry) {
+            return entry.isCurrentUser;
+          })
+          .toList(growable: false);
 
-      if (currentUserCount != 1) {
+      if (isParticipating) {
+        if (participantCount < 1) {
+          throw const LeaderboardFailure(
+            'Jumlah peserta leaderboard '
+            'tidak sah.',
+          );
+        }
+
+        if (currentUserEntries.length != 1) {
+          throw const LeaderboardFailure(
+            'Kedudukan pengguna semasa '
+            'tidak dapat dikenal pasti.',
+          );
+        }
+
+        if (currentUserEntries.single.xp != currentUserXp) {
+          throw const LeaderboardFailure(
+            'XP pengguna semasa tidak '
+            'sepadan dengan ranking.',
+          );
+        }
+      } else if (currentUserEntries.isNotEmpty) {
         throw const LeaderboardFailure(
-          'Kedudukan pengguna semasa '
-          'tidak dapat dikenal pasti.',
+          'Pengguna opt-out tidak '
+          'sepatutnya mempunyai ranking.',
         );
       }
 
       entries.sort((first, second) {
         return first.rank.compareTo(second.rank);
       });
-
-      final participantCount = _readInteger(
-        responseMap,
-        'participantCount',
-        minimum: 1,
-      );
 
       if (participantCount < entries.length) {
         throw const LeaderboardFailure(
@@ -124,7 +171,12 @@ class SupabaseLeaderboardRepository implements LeaderboardRepository {
 
       return LeaderboardSnapshot(
         period: responsePeriod,
-        generatedAt: _readDateTime(responseMap, 'generatedAt'),
+        generatedAt: generatedAt,
+        periodStartsAt: periodStartsAt,
+        periodEndsAt: periodEndsAt,
+        timezone: timezone,
+        isParticipating: isParticipating,
+        currentUserXp: currentUserXp,
         participantCount: participantCount,
         entries: List<LeaderboardEntry>.unmodifiable(entries),
       );
@@ -286,18 +338,11 @@ class SupabaseLeaderboardRepository implements LeaderboardRepository {
     }
 
     if (message.contains('profile was not found')) {
-      return 'Profil pengguna '
-          'tidak ditemui.';
-    }
-
-    if (message.contains('progress was not found')) {
-      return 'Progress pengguna '
-          'tidak ditemui.';
+      return 'Profil pengguna tidak ditemui.';
     }
 
     if (message.contains('period must be')) {
-      return 'Tempoh leaderboard '
-          'tidak sah.';
+      return 'Tempoh leaderboard tidak sah.';
     }
 
     if (message.contains('limit must be')) {

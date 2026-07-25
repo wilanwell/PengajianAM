@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,7 +10,10 @@ import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../analytics/presentation/controllers/topic_analytics_controller.dart';
 import '../../../home/presentation/controllers/home_controller.dart';
+import '../../../leaderboard/domain/entities/leaderboard_period.dart';
 import '../../../leaderboard/presentation/controllers/leaderboard_controller.dart';
+import '../../../leaderboard/presentation/controllers/leaderboard_preference_controller.dart';
+import '../../../leaderboard/presentation/controllers/leaderboard_preference_state.dart';
 import '../../../profile/presentation/controllers/profile_controller.dart';
 import '../../../progress/presentation/controllers/user_progress_controller.dart';
 import '../../../quiz/domain/entities/quiz_mode.dart';
@@ -35,8 +40,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   void initState() {
     super.initState();
 
-    Future<void>.microtask(() {
-      ref.read(appSettingsControllerProvider.notifier).loadSettings();
+    Future<void>.microtask(() async {
+      await Future.wait<void>([
+        ref.read(appSettingsControllerProvider.notifier).loadSettings(),
+        ref
+            .read(leaderboardPreferenceControllerProvider.notifier)
+            .loadPreference(),
+      ]);
     });
   }
 
@@ -84,6 +94,165 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       );
   }
 
+  Future<void> _updateLeaderboardParticipation(bool optIn) async {
+    final preferenceState = ref.read(leaderboardPreferenceControllerProvider);
+
+    if (preferenceState.isBusy) {
+      return;
+    }
+
+    final shouldUpdate = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        if (optIn) {
+          return AlertDialog(
+            icon: const Icon(
+              Icons.emoji_events_outlined,
+              color: AppColors.actionBlue,
+              size: 44,
+            ),
+            title: const Text('Sertai Leaderboard?'),
+            content: const Text(
+              'Apabila anda menyertai '
+              'leaderboard:\n\n'
+              '\u2022 XP mingguan dan bulanan '
+              'anda akan digunakan untuk '
+              'menentukan ranking.\n'
+              '\u2022 Pengguna lain hanya akan '
+              'melihat nama samaran seperti '
+              'Pelajar-A1B2.\n'
+              '\u2022 Nama paparan sebenar anda '
+              'hanya ditunjukkan kepada anda '
+              'sendiri.\n'
+              '\u2022 Anda boleh berhenti '
+              'menyertai pada bila-bila masa.\n\n'
+              'Dengan memilih “Saya Setuju & '
+              'Sertai”, anda memberikan '
+              'persetujuan untuk XP tempoh '
+              'semasa digunakan dalam '
+              'leaderboard.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(dialogContext).pop(false);
+                },
+                child: const Text('Batal'),
+              ),
+              FilledButton.icon(
+                onPressed: () {
+                  Navigator.of(dialogContext).pop(true);
+                },
+                icon: const Icon(Icons.check_circle_outline_rounded),
+                label: const Text('Saya Setuju & Sertai'),
+              ),
+            ],
+          );
+        }
+
+        return AlertDialog(
+          icon: const Icon(
+            Icons.privacy_tip_outlined,
+            color: AppColors.primary,
+            size: 44,
+          ),
+          title: const Text('Berhenti Menyertai?'),
+          content: const Text(
+            'Anda akan dikeluarkan daripada '
+            'leaderboard.\n\n'
+            'XP, progress, sejarah kuiz dan '
+            'analitik pembelajaran anda tidak '
+            'akan dipadamkan.\n\n'
+            'Anda masih boleh melihat '
+            'leaderboard tanpa mempunyai '
+            'ranking sendiri.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop(false);
+              },
+              child: const Text('Batal'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop(true);
+              },
+              child: const Text('Berhenti Menyertai'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldUpdate != true || !mounted) {
+      return;
+    }
+
+    /*
+     * Simpan tempoh leaderboard yang sedang
+     * dipilih sebelum controller direset.
+     */
+    final selectedLeaderboardPeriod = ref
+        .read(leaderboardControllerProvider)
+        .period;
+
+    final errorMessage = await ref
+        .read(leaderboardPreferenceControllerProvider.notifier)
+        .updateParticipation(optIn);
+
+    if (!mounted) {
+      return;
+    }
+
+    if (errorMessage == null) {
+      /*
+       * Bersihkan ranking lama daripada
+       * shared state.
+       */
+      ref.read(leaderboardControllerProvider.notifier).reset();
+
+      ref.read(homeControllerProvider.notifier).reset();
+
+      /*
+       * Home menggunakan leaderboard weekly.
+       * loadDashboard akan mengambil status
+       * penyertaan yang paling terkini.
+       */
+      await ref
+          .read(homeControllerProvider.notifier)
+          .loadDashboard(forceRefresh: true);
+
+      /*
+       * Sekiranya pengguna sebelum ini memilih
+       * leaderboard monthly, pulihkan tempoh
+       * tersebut selepas Home selesai memuatkan
+       * leaderboard weekly.
+       */
+      if (selectedLeaderboardPeriod != LeaderboardPeriod.weekly) {
+        await ref
+            .read(leaderboardControllerProvider.notifier)
+            .loadLeaderboard(
+              period: selectedLeaderboardPeriod,
+              forceRefresh: true,
+            );
+      }
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    final successMessage = optIn
+        ? 'Anda kini menyertai leaderboard.'
+        : 'Anda tidak lagi menyertai leaderboard.';
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(errorMessage ?? successMessage)));
+  }
+
   Future<void> _resetAllData() async {
     if (_isResettingData) {
       return;
@@ -114,7 +283,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             '\u2022 Tetapan kuiz lalai\n\n'
             'Akaun log masuk anda tidak akan '
             'dipadamkan.\n\n'
-            'Tindakan ini tidak boleh dibatalkan.',
+            'Tindakan ini tidak boleh '
+            'dibatalkan.',
           ),
           actions: [
             TextButton(
@@ -159,8 +329,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           .clearLocalProgress();
 
       /*
-       * Padam draft SharedPreferences dan hentikan
-       * timer serta state kuiz.
+       * Padam draft SharedPreferences dan
+       * hentikan timer serta state kuiz.
        */
       await ref.read(quizSessionControllerProvider.notifier).discardDraft();
 
@@ -188,6 +358,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
       /*
        * Muatkan data terkini selepas reset.
+       *
+       * Preference leaderboard tidak direset
+       * kerana ia merupakan pilihan privasi,
+       * bukan progress pembelajaran.
        */
       await Future.wait<void>([
         ref
@@ -202,9 +376,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       ]);
     } catch (_) {
       errorMessage =
-          'Sebahagian data tidak dapat direset. '
-          'Semak sambungan Internet dan '
-          'cuba semula.';
+          'Sebahagian data tidak dapat '
+          'direset. Semak sambungan Internet '
+          'dan cuba semula.';
     }
 
     if (!mounted) {
@@ -232,6 +406,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   Widget build(BuildContext context) {
     final state = ref.watch(appSettingsControllerProvider);
 
+    final leaderboardPreferenceState = ref.watch(
+      leaderboardPreferenceControllerProvider,
+    );
+
     final controller = ref.read(appSettingsControllerProvider.notifier);
 
     return Scaffold(
@@ -242,23 +420,32 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             const Center(child: CircularProgressIndicator()),
 
           AppSettingsStatus.failure => _SettingsErrorView(
-            message:
-                state.errorMessage ??
-                'Tetapan tidak dapat '
-                    'dimuatkan.',
+            message: state.errorMessage ?? 'Tetapan tidak dapat dimuatkan.',
             onRetry: () {
-              controller.loadSettings(forceRefresh: true);
+              unawaited(controller.loadSettings(forceRefresh: true));
             },
           ),
 
           AppSettingsStatus.success => _SettingsContent(
             settings: state.settings,
+            leaderboardPreferenceState: leaderboardPreferenceState,
             isResettingData: _isResettingData,
-            onRefresh: () {
-              return controller.loadSettings(forceRefresh: true);
+            onRefresh: () async {
+              await Future.wait<void>([
+                controller.loadSettings(forceRefresh: true),
+                ref
+                    .read(leaderboardPreferenceControllerProvider.notifier)
+                    .loadPreference(forceRefresh: true),
+              ]);
             },
             onModeSelected: _updateDefaultMode,
             onQuestionCountSelected: _updateDefaultQuestionCount,
+            onLeaderboardParticipationChanged: _updateLeaderboardParticipation,
+            onRetryLeaderboardPreference: () {
+              return ref
+                  .read(leaderboardPreferenceControllerProvider.notifier)
+                  .loadPreference(forceRefresh: true);
+            },
             onResetData: _resetAllData,
           ),
         },
@@ -270,14 +457,20 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 class _SettingsContent extends StatelessWidget {
   const _SettingsContent({
     required this.settings,
+    required this.leaderboardPreferenceState,
     required this.isResettingData,
     required this.onRefresh,
     required this.onModeSelected,
     required this.onQuestionCountSelected,
+    required this.onLeaderboardParticipationChanged,
+    required this.onRetryLeaderboardPreference,
     required this.onResetData,
   });
 
   final AppSettings settings;
+
+  final LeaderboardPreferenceState leaderboardPreferenceState;
+
   final bool isResettingData;
 
   final Future<void> Function() onRefresh;
@@ -285,6 +478,10 @@ class _SettingsContent extends StatelessWidget {
   final Future<void> Function(QuizMode) onModeSelected;
 
   final Future<void> Function(int) onQuestionCountSelected;
+
+  final Future<void> Function(bool) onLeaderboardParticipationChanged;
+
+  final Future<void> Function() onRetryLeaderboardPreference;
 
   final Future<void> Function() onResetData;
 
@@ -363,7 +560,7 @@ class _SettingsContent extends StatelessWidget {
             description: QuizMode.practice.description,
             isSelected: settings.defaultQuizMode == QuizMode.practice,
             onTap: () {
-              onModeSelected(QuizMode.practice);
+              unawaited(onModeSelected(QuizMode.practice));
             },
           ),
           const SizedBox(height: AppSpacing.sm),
@@ -373,7 +570,7 @@ class _SettingsContent extends StatelessWidget {
             description: QuizMode.exam.description,
             isSelected: settings.defaultQuizMode == QuizMode.exam,
             onTap: () {
-              onModeSelected(QuizMode.exam);
+              unawaited(onModeSelected(QuizMode.exam));
             },
           ),
           const SizedBox(height: AppSpacing.lg),
@@ -382,7 +579,8 @@ class _SettingsContent extends StatelessWidget {
           const SizedBox(height: AppSpacing.xs),
           Text(
             'Jumlah soalan ini akan dipilih '
-            'secara automatik untuk kuiz baharu.',
+            'secara automatik untuk kuiz '
+            'baharu.',
             style: textTheme.bodyMedium?.copyWith(
               color: AppColors.secondaryText,
             ),
@@ -397,10 +595,28 @@ class _SettingsContent extends StatelessWidget {
                   label: Text('$count soalan'),
                   selected: settings.defaultQuestionCount == count,
                   onSelected: (_) {
-                    onQuestionCountSelected(count);
+                    unawaited(onQuestionCountSelected(count));
                   },
                 ),
             ],
+          ),
+          const SizedBox(height: AppSpacing.lg),
+
+          Text('Privasi Leaderboard', style: textTheme.titleLarge),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            'Pilih sama ada XP tempoh semasa '
+            'boleh digunakan untuk menentukan '
+            'ranking anda.',
+            style: textTheme.bodyMedium?.copyWith(
+              color: AppColors.secondaryText,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _LeaderboardParticipationCard(
+            state: leaderboardPreferenceState,
+            onChanged: onLeaderboardParticipationChanged,
+            onRetry: onRetryLeaderboardPreference,
           ),
           const SizedBox(height: AppSpacing.lg),
 
@@ -442,15 +658,11 @@ class _SettingsContent extends StatelessWidget {
           _ResetDataCard(isResetting: isResettingData, onReset: onResetData),
           const SizedBox(height: AppSpacing.lg),
 
-          /*
-           * Bahagian baharu untuk tindakan kekal
-           * terhadap akaun pengguna.
-           */
           Text('Pengurusan Akaun', style: textTheme.titleLarge),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            'Urus tindakan kekal yang berkaitan '
-            'dengan akaun anda.',
+            'Urus tindakan kekal yang '
+            'berkaitan dengan akaun anda.',
             style: textTheme.bodyMedium?.copyWith(
               color: AppColors.secondaryText,
             ),
@@ -553,6 +765,180 @@ class _SettingsOptionTile extends StatelessWidget {
   }
 }
 
+class _LeaderboardParticipationCard extends StatelessWidget {
+  const _LeaderboardParticipationCard({
+    required this.state,
+    required this.onChanged,
+    required this.onRetry,
+  });
+
+  final LeaderboardPreferenceState state;
+
+  final Future<void> Function(bool) onChanged;
+
+  final Future<void> Function() onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    final isLoading =
+        state.status == LeaderboardPreferenceStatus.initial ||
+        state.status == LeaderboardPreferenceStatus.loading;
+
+    final hasFailure = state.status == LeaderboardPreferenceStatus.failure;
+
+    final isOptedIn = state.isOptedIn;
+
+    final consentVersion =
+        state.preference?.consentVersion ??
+        state.preference?.requiredConsentVersion;
+
+    return Container(
+      padding: AppSpacing.largeCardPadding,
+      decoration: BoxDecoration(
+        color: isOptedIn ? AppColors.softBlue : AppColors.surface,
+        borderRadius: AppRadius.extraLarge,
+        border: Border.all(
+          color: isOptedIn ? AppColors.actionBlue : AppColors.border,
+          width: isOptedIn ? 2 : 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: isOptedIn
+                      ? AppColors.actionBlue
+                      : AppColors.surfaceMuted,
+                  borderRadius: AppRadius.medium,
+                ),
+                child: Icon(
+                  Icons.emoji_events_outlined,
+                  color: isOptedIn
+                      ? AppColors.textOnPrimary
+                      : AppColors.primary,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Sertai Leaderboard', style: textTheme.titleMedium),
+                    const SizedBox(height: AppSpacing.xxs),
+                    Text(
+                      isOptedIn ? 'Penyertaan aktif' : 'Penyertaan tidak aktif',
+                      style: textTheme.bodySmall?.copyWith(
+                        color: isOptedIn
+                            ? AppColors.actionBlue
+                            : AppColors.secondaryText,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              if (isLoading || state.isUpdating)
+                const SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: CircularProgressIndicator(strokeWidth: 2.5),
+                )
+              else
+                Switch.adaptive(
+                  value: isOptedIn,
+                  onChanged: state.canUpdate
+                      ? (value) {
+                          unawaited(onChanged(value));
+                        }
+                      : null,
+                ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            isOptedIn
+                ? 'XP mingguan dan bulanan '
+                      'anda digunakan untuk '
+                      'menentukan ranking. '
+                      'Pengguna lain hanya '
+                      'melihat nama samaran.'
+                : 'Anda tidak muncul dalam '
+                      'ranking. XP, progress '
+                      'dan sejarah pembelajaran '
+                      'anda masih disimpan.',
+            style: textTheme.bodyMedium?.copyWith(
+              color: AppColors.secondaryText,
+              height: 1.4,
+            ),
+          ),
+          if (isOptedIn && consentVersion != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Row(
+              children: [
+                const Icon(
+                  Icons.verified_user_outlined,
+                  size: 18,
+                  color: AppColors.success,
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                Expanded(
+                  child: Text(
+                    'Persetujuan versi '
+                    '$consentVersion',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: AppColors.secondaryText,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+          if (hasFailure) ...[
+            const SizedBox(height: AppSpacing.md),
+            Container(
+              width: double.infinity,
+              padding: AppSpacing.cardPadding,
+              decoration: const BoxDecoration(
+                color: AppColors.errorBackground,
+                borderRadius: AppRadius.medium,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    state.errorMessage ??
+                        'Tetapan leaderboard '
+                            'tidak dapat dimuatkan.',
+                    style: textTheme.bodyMedium?.copyWith(
+                      color: AppColors.error,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      unawaited(onRetry());
+                    },
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text('Cuba Semula'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class _SettingsNavigationTile extends StatelessWidget {
   const _SettingsNavigationTile({
     required this.icon,
@@ -626,6 +1012,7 @@ class _ResetDataCard extends StatelessWidget {
   const _ResetDataCard({required this.isResetting, required this.onReset});
 
   final bool isResetting;
+
   final Future<void> Function() onReset;
 
   @override
@@ -671,7 +1058,7 @@ class _ResetDataCard extends StatelessWidget {
             onPressed: isResetting
                 ? null
                 : () {
-                    onReset();
+                    unawaited(onReset());
                   },
             icon: isResetting
                 ? const SizedBox(
@@ -759,6 +1146,7 @@ class _SettingsErrorView extends StatelessWidget {
   const _SettingsErrorView({required this.message, required this.onRetry});
 
   final String message;
+
   final VoidCallback onRetry;
 
   @override

@@ -128,6 +128,11 @@ class LeaderboardController extends Notifier<LeaderboardState> {
         period: snapshot.period,
         entries: snapshot.entries,
         participantCount: snapshot.participantCount,
+        isParticipating: snapshot.isParticipating,
+        currentUserXp: snapshot.currentUserXp,
+        periodStartsAt: snapshot.periodStartsAt,
+        periodEndsAt: snapshot.periodEndsAt,
+        timezone: snapshot.timezone,
         lastUpdated: snapshot.generatedAt,
       );
     } on LeaderboardFailure catch (error) {

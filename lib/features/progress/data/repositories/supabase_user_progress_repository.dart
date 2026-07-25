@@ -10,6 +10,7 @@ class SupabaseUserProgressRepository implements UserProgressRepository {
   const SupabaseUserProgressRepository(this._client, this._requestExecutor);
 
   final SupabaseClient _client;
+
   final NetworkRequestExecutor _requestExecutor;
 
   @override
@@ -23,7 +24,13 @@ class SupabaseUserProgressRepository implements UserProgressRepository {
       );
     }
 
+    final requestedUserId = user.id;
+
     try {
+      /*
+       * Profil pengguna menyimpan maklumat
+       * identiti dan semester.
+       */
       final profile = await _requestExecutor.run<Map<String, dynamic>>(
         request: () async {
           final response = await _client
@@ -32,34 +39,49 @@ class SupabaseUserProgressRepository implements UserProgressRepository {
                 'id, display_name, '
                 'semester_label, created_at',
               )
-              .eq('id', user.id)
+              .eq('id', requestedUserId)
               .single();
 
           return Map<String, dynamic>.from(response);
         },
       );
 
+      /*
+       * user_progress masih digunakan untuk
+       * statistik sepanjang hayat.
+       *
+       * weekly_xp dan monthly_xp tidak lagi
+       * dibaca kerana kedua-duanya ialah
+       * counter lama yang tidak mengikut
+       * sempadan minggu dan bulan sebenar.
+       */
       final progress = await _requestExecutor.run<Map<String, dynamic>>(
         request: () async {
           final response = await _client
               .from('user_progress')
               .select(
-                'user_id, total_xp, weekly_xp, '
-                'monthly_xp, completed_quizzes, '
+                'user_id, total_xp, '
+                'completed_quizzes, '
                 'total_correct_answers, '
                 'total_quiz_questions, '
-                'highest_score, completed_topics, '
+                'highest_score, '
+                'completed_topics, '
                 'current_streak_days, '
                 'best_streak_days, '
                 'weekly_answered_questions',
               )
-              .eq('user_id', user.id)
+              .eq('user_id', requestedUserId)
               .single();
 
           return Map<String, dynamic>.from(response);
         },
       );
 
+      /*
+       * Dapatkan jumlah topik aktif untuk
+       * memastikan completedTopics tidak
+       * melebihi jumlah topik sebenar.
+       */
       final activeTopics = await _requestExecutor
           .run<List<Map<String, dynamic>>>(
             request: () async {
@@ -72,6 +94,31 @@ class SupabaseUserProgressRepository implements UserProgressRepository {
             },
           );
 
+      /*
+       * Weekly dan monthly XP kini dikira
+       * secara server-side berdasarkan:
+       *
+       * - quiz_attempts.earned_xp;
+       * - quiz_attempts.completed_at;
+       * - timezone Asia/Kuala_Lumpur.
+       */
+      final periodXpResponse = await _requestExecutor.run<Object?>(
+        request: () {
+          return _client.rpc('get_my_period_xp');
+        },
+      );
+
+      final periodXp = _readPeriodXpSnapshot(periodXpResponse);
+
+      /*
+       * Pastikan akaun tidak bertukar ketika
+       * request masih berjalan.
+       *
+       * Ini menghalang data akaun lama daripada
+       * ditulis kepada controller akaun baharu.
+       */
+      _ensureSameAuthenticatedUser(requestedUserId);
+
       final totalTopics = activeTopics.length;
 
       final storedCompletedTopics = _readInteger(progress, 'completed_topics');
@@ -83,12 +130,19 @@ class SupabaseUserProgressRepository implements UserProgressRepository {
       return UserProgress(
         userId: _readRequiredString(profile, 'id'),
         displayName: _readRequiredString(profile, 'display_name'),
-        email: user.email ?? '',
+        email: _client.auth.currentUser?.email ?? user.email ?? '',
         semesterLabel: _readRequiredString(profile, 'semester_label'),
         joinedAt: _readDateTime(profile, 'created_at'),
         totalXp: _readInteger(progress, 'total_xp'),
-        weeklyXp: _readInteger(progress, 'weekly_xp'),
-        monthlyXp: _readInteger(progress, 'monthly_xp'),
+
+        /*
+         * Gunakan nilai tempoh sebenar daripada
+         * get_my_period_xp(), bukan counter lama
+         * dalam public.user_progress.
+         */
+        weeklyXp: periodXp.weeklyXp,
+        monthlyXp: periodXp.monthlyXp,
+
         completedQuizzes: _readInteger(progress, 'completed_quizzes'),
         totalCorrectAnswers: _readInteger(progress, 'total_correct_answers'),
         totalQuizQuestions: _readInteger(progress, 'total_quiz_questions'),
@@ -181,6 +235,83 @@ class SupabaseUserProgressRepository implements UserProgressRepository {
         'Internet anda.',
       );
     }
+  }
+
+  void _ensureSameAuthenticatedUser(String requestedUserId) {
+    final currentUserId = _client.auth.currentUser?.id;
+
+    if (currentUserId == null) {
+      throw const UserProgressFailure(
+        'Sesi pengguna telah tamat. '
+        'Sila log masuk semula.',
+      );
+    }
+
+    if (currentUserId != requestedUserId) {
+      throw const UserProgressFailure(
+        'Akaun pengguna telah berubah ketika '
+        'progress sedang dimuatkan. '
+        'Sila cuba semula.',
+      );
+    }
+  }
+
+  _PeriodXpSnapshot _readPeriodXpSnapshot(Object? response) {
+    final responseMap = _readResponseMap(response);
+
+    final weeklyXp = _readInteger(responseMap, 'weeklyXp');
+
+    final monthlyXp = _readInteger(responseMap, 'monthlyXp');
+
+    final weekStartsAt = _readDateTime(responseMap, 'weekStartsAt');
+
+    final weekEndsAt = _readDateTime(responseMap, 'weekEndsAt');
+
+    final monthStartsAt = _readDateTime(responseMap, 'monthStartsAt');
+
+    final monthEndsAt = _readDateTime(responseMap, 'monthEndsAt');
+
+    final timezone = _readRequiredString(responseMap, 'timezone');
+
+    /*
+     * Server time turut dibaca untuk
+     * memastikan response RPC lengkap dan sah.
+     */
+    _readDateTime(responseMap, 'serverTime');
+
+    if (timezone != 'Asia/Kuala_Lumpur') {
+      throw const UserProgressFailure(
+        'Timezone XP tempoh daripada '
+        'server tidak sah.',
+      );
+    }
+
+    if (!weekEndsAt.isAfter(weekStartsAt)) {
+      throw const UserProgressFailure(
+        'Julat XP mingguan daripada '
+        'server tidak sah.',
+      );
+    }
+
+    if (!monthEndsAt.isAfter(monthStartsAt)) {
+      throw const UserProgressFailure(
+        'Julat XP bulanan daripada '
+        'server tidak sah.',
+      );
+    }
+
+    return _PeriodXpSnapshot(weeklyXp: weeklyXp, monthlyXp: monthlyXp);
+  }
+
+  Map<String, dynamic> _readResponseMap(Object? response) {
+    if (response is! Map) {
+      throw const UserProgressFailure(
+        'Response XP tempoh daripada '
+        'server tidak sah.',
+      );
+    }
+
+    return Map<String, dynamic>.from(response);
   }
 
   String _readRequiredString(Map<String, dynamic> json, String key) {
@@ -313,6 +444,13 @@ class SupabaseUserProgressRepository implements UserProgressRepository {
           'pengguna tidak ditemui.';
     }
 
+    if (message.contains('could not find the function') ||
+        message.contains('get_my_period_xp')) {
+      return 'Fungsi XP mingguan dan '
+          'bulanan belum tersedia pada '
+          'server.';
+    }
+
     if (message.contains('failed host lookup') ||
         message.contains('connection refused') ||
         message.contains('network')) {
@@ -324,4 +462,12 @@ class SupabaseUserProgressRepository implements UserProgressRepository {
     return 'Operasi progress gagal. '
         'Sila cuba semula.';
   }
+}
+
+class _PeriodXpSnapshot {
+  const _PeriodXpSnapshot({required this.weeklyXp, required this.monthlyXp});
+
+  final int weeklyXp;
+
+  final int monthlyXp;
 }
