@@ -1,0 +1,17 @@
+{
+    "name": "pa-cerdas-dev-tools",
+    "version": "0.0.0",
+    "private": true,
+    "description": "Project-scoped development tooling for PA Cerdas.",
+    "scripts": {
+        "supabase:version": "supabase --version",
+        "db:migrations:list": "supabase migration list --linked",
+        "db:push:dry-run": "supabase db push --linked --dry-run"
+    },
+    "engines": {
+        "node": ">=20"
+    },
+    "devDependencies": {
+        "supabase": "2.109.1"
+    }
+}

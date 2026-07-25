@@ -46,3 +46,4 @@ app.*.map.json
 
 # Local project archive
 PengajianAM.zip
+node_modules/
