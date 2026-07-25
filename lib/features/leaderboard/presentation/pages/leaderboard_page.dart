@@ -37,7 +37,9 @@ class _LeaderboardPageState extends ConsumerState<LeaderboardPage> {
 
     Future<void>.microtask(() async {
       await Future.wait<void>([
-        ref.read(leaderboardControllerProvider.notifier).loadLeaderboard(),
+        ref
+            .read(leaderboardControllerProvider.notifier)
+            .loadLeaderboard(forceRefresh: true),
         ref
             .read(leaderboardPreferenceControllerProvider.notifier)
             .loadPreference(),
