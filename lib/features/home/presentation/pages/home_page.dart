@@ -374,13 +374,13 @@ class _QuickActionsGrid extends StatelessWidget {
             SizedBox(
               width: cardWidth,
               child: QuickActionCard(
-                icon: Icons.person_rounded,
-                title: 'Profil',
+                icon: Icons.fact_check_rounded,
+                title: 'Buku Kesilapan',
                 description:
-                    'Semak kemajuan '
-                    'dan akaun',
+                    'Semak soalan yang '
+                    'perlu diulang kaji',
                 onTap: () {
-                  context.goNamed(RouteNames.profile);
+                  context.pushNamed(RouteNames.mistakeBook);
                 },
               ),
             ),

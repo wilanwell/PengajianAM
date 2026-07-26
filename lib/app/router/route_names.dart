@@ -18,6 +18,7 @@ abstract final class RouteNames {
   static const String quizReview = 'quiz-review';
   static const String quizHistory = 'quiz-history';
   static const String topicAnalytics = 'topic-analytics';
+  static const String mistakeBook = 'mistake-book';
   static const String settings = 'settings';
   static const String leaderboard = 'leaderboard';
   static const String profile = 'profile';
@@ -45,6 +46,7 @@ abstract final class RoutePaths {
   static const String quizReview = '/quiz/review';
   static const String quizHistory = '/quiz/history';
   static const String topicAnalytics = '/analytics/topics';
+  static const String mistakeBook = '/mistake-book';
   static const String settings = '/settings';
   static const String leaderboard = '/leaderboard';
   static const String profile = '/profile';
