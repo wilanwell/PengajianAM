@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pengajian_am_stpm_objektif/features/mistake_book/presentation/controllers/mistake_book_controller.dart';
+import 'package:pengajian_am_stpm_objektif/features/mistake_book/presentation/controllers/mistake_book_state.dart';
 import 'package:pengajian_am_stpm_objektif/features/progress/domain/entities/user_progress.dart';
 import 'package:pengajian_am_stpm_objektif/features/progress/domain/repositories/user_progress_repository.dart';
 import 'package:pengajian_am_stpm_objektif/features/progress/presentation/controllers/user_progress_controller.dart';
@@ -338,6 +340,18 @@ QuizDraft _createRestorableDraft() {
   );
 }
 
+class _CountingMistakeBookController extends MistakeBookController {
+  _CountingMistakeBookController({required this.onBuild});
+
+  final void Function() onBuild;
+
+  @override
+  MistakeBookState build() {
+    onBuild();
+    return super.build();
+  }
+}
+
 void main() {
   test('autosave kuiz dan memadam draft selepas submit', () async {
     final progressRepository = _FakeUserProgressRepository(
@@ -352,8 +366,17 @@ void main() {
       },
     );
 
+    var mistakeBookBuildCount = 0;
+
     final container = ProviderContainer(
       overrides: [
+        mistakeBookControllerProvider.overrideWith(
+          () => _CountingMistakeBookController(
+            onBuild: () {
+              mistakeBookBuildCount++;
+            },
+          ),
+        ),
         quizRepositoryProvider.overrideWithValue(quizRepository),
         quizDraftRepositoryProvider.overrideWithValue(draftRepository),
         quizDraftOwnerIdProvider.overrideWithValue('current-user'),
@@ -367,6 +390,9 @@ void main() {
     addTearDown(container.dispose);
 
     final controller = container.read(quizSessionControllerProvider.notifier);
+
+    container.read(mistakeBookControllerProvider);
+    expect(mistakeBookBuildCount, 1);
 
     await controller.startQuiz(
       topicId: 'topic-s1-02',
@@ -386,9 +412,13 @@ void main() {
 
     await controller.submitQuiz();
 
+    container.read(mistakeBookControllerProvider);
+
     state = container.read(quizSessionControllerProvider);
 
     expect(state.status, QuizSessionStatus.completed);
+
+    expect(mistakeBookBuildCount, 2);
 
     expect(draftRepository.storedDraft, isNull);
 

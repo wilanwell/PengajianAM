@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/network/presentation/providers/network_request_executor_provider.dart';
 import '../../../../core/services/supabase_client_provider.dart';
+import '../../../mistake_book/presentation/controllers/mistake_book_controller.dart';
 import '../../../progress/presentation/controllers/user_progress_controller.dart';
 import '../../data/repositories/shared_preferences_quiz_draft_repository.dart';
 import '../../data/repositories/supabase_quiz_repository.dart';
@@ -557,6 +558,8 @@ class QuizSessionController extends Notifier<QuizSessionState> {
         elapsedTime: elapsedTime,
         autoSubmitted: autoSubmitted,
       );
+
+      ref.invalidate(mistakeBookControllerProvider);
 
       await _deleteDraftSafely();
 
