@@ -8,6 +8,7 @@ import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../domain/entities/quiz_draft.dart';
 import '../../domain/entities/quiz_mode.dart';
+import '../../domain/entities/quiz_session_source.dart';
 import '../../domain/exceptions/quiz_draft_failure.dart';
 import '../controllers/quiz_session_controller.dart';
 import '../controllers/quiz_session_state.dart';
@@ -22,12 +23,14 @@ class QuizQuestionPage extends ConsumerStatefulWidget {
     required this.topicId,
     required this.mode,
     required this.questionCount,
+    this.source = QuizSessionSource.standard,
     this.resumeDraft = false,
     super.key,
   });
 
   final String topicId;
   final QuizMode mode;
+  final QuizSessionSource source;
   final int questionCount;
   final bool resumeDraft;
 
@@ -52,11 +55,7 @@ class _QuizQuestionPageState extends ConsumerState<QuizQuestionPage> {
     final controller = ref.read(quizSessionControllerProvider.notifier);
 
     if (!widget.resumeDraft) {
-      await controller.startQuiz(
-        topicId: widget.topicId,
-        mode: widget.mode,
-        questionCount: widget.questionCount,
-      );
+      await _startRequestedSession();
 
       return;
     }
@@ -133,6 +132,23 @@ class _QuizQuestionPageState extends ConsumerState<QuizQuestionPage> {
     }
   }
 
+  Future<void> _startRequestedSession() {
+    final controller = ref.read(quizSessionControllerProvider.notifier);
+
+    if (widget.source == QuizSessionSource.mistakeReview) {
+      return controller.startMistakeReview(
+        topicId: widget.topicId,
+        questionCount: widget.questionCount,
+      );
+    }
+
+    return controller.startQuiz(
+      topicId: widget.topicId,
+      mode: widget.mode,
+      questionCount: widget.questionCount,
+    );
+  }
+
   void _leaveAfterRestoreFailure(String message) {
     setState(() {
       _allowPop = true;
@@ -188,6 +204,10 @@ class _QuizQuestionPageState extends ConsumerState<QuizQuestionPage> {
 
     _isExitDialogOpen = true;
 
+    final sessionLabel = state.source == QuizSessionSource.mistakeReview
+        ? 'latihan semula'
+        : 'kuiz';
+
     final action = await showDialog<_QuizExitAction>(
       context: context,
       barrierDismissible: false,
@@ -198,9 +218,9 @@ class _QuizQuestionPageState extends ConsumerState<QuizQuestionPage> {
             color: AppColors.warning,
             size: 42,
           ),
-          title: const Text('Keluar Kuiz?'),
+          title: Text('Keluar ${state.source.label}?'),
           content: Text(
-            'Kemajuan kuiz disimpan secara '
+            'Kemajuan $sessionLabel disimpan secara '
             'automatik.\n\n'
             '${state.answeredQuestionCount} daripada '
             '${state.questions.length} soalan '
@@ -217,7 +237,7 @@ class _QuizQuestionPageState extends ConsumerState<QuizQuestionPage> {
               onPressed: () {
                 Navigator.of(dialogContext).pop(_QuizExitAction.continueQuiz);
               },
-              child: const Text('Teruskan Kuiz'),
+              child: Text('Teruskan ${state.source.label}'),
             ),
             OutlinedButton.icon(
               onPressed: () {
@@ -390,6 +410,14 @@ class _QuizQuestionPageState extends ConsumerState<QuizQuestionPage> {
         ? state.mode
         : widget.mode;
 
+    final pageSource = state.status == QuizSessionStatus.ready
+        ? state.source
+        : widget.source;
+
+    final pageTitle = pageSource == QuizSessionSource.mistakeReview
+        ? pageSource.label
+        : pageMode.label;
+
     return PopScope<void>(
       canPop: _allowPop || !shouldBlockExit,
       onPopInvokedWithResult: (didPop, result) async {
@@ -414,7 +442,7 @@ class _QuizQuestionPageState extends ConsumerState<QuizQuestionPage> {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: Text(pageMode.label),
+          title: Text(pageTitle),
           actions: [
             if (state.status == QuizSessionStatus.ready)
               IconButton(
@@ -467,13 +495,11 @@ class _QuizQuestionPageState extends ConsumerState<QuizQuestionPage> {
               const Center(child: CircularProgressIndicator()),
 
             QuizSessionStatus.failure => _QuizSessionErrorView(
-              message: state.errorMessage ?? 'Kuiz tidak dapat dimulakan.',
+              message:
+                  state.errorMessage ??
+                  '${pageSource.label} tidak dapat dimulakan.',
               onRetry: () {
-                controller.startQuiz(
-                  topicId: widget.topicId,
-                  mode: widget.mode,
-                  questionCount: widget.questionCount,
-                );
+                _startRequestedSession();
               },
             ),
 

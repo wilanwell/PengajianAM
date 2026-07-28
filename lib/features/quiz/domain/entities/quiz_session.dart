@@ -1,5 +1,6 @@
 import 'quiz_mode.dart';
 import 'quiz_session_question.dart';
+import 'quiz_session_source.dart';
 
 class QuizSession {
   const QuizSession({
@@ -9,6 +10,7 @@ class QuizSession {
     required this.questionCount,
     required this.expiresAt,
     required this.questions,
+    this.source = QuizSessionSource.standard,
     this.createdAt,
     this.serverTime,
     this.hardExpiresAt,
@@ -18,6 +20,7 @@ class QuizSession {
   final String sessionId;
   final String topicId;
   final QuizMode mode;
+  final QuizSessionSource source;
   final int questionCount;
 
   /// Effective expiry yang diberikan oleh server.

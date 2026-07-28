@@ -1,6 +1,7 @@
 import '../../domain/entities/quiz_mode.dart';
 import '../../domain/entities/quiz_result.dart';
 import '../../domain/entities/quiz_session_question.dart';
+import '../../domain/entities/quiz_session_source.dart';
 
 enum QuizSessionStatus {
   initial,
@@ -17,6 +18,7 @@ class QuizSessionState {
     this.sessionId,
     this.topicId,
     this.mode = QuizMode.practice,
+    this.source = QuizSessionSource.standard,
     this.requestedQuestionCount = 10,
     this.questions = const [],
     this.currentQuestionIndex = 0,
@@ -32,6 +34,7 @@ class QuizSessionState {
   final String? sessionId;
   final String? topicId;
   final QuizMode mode;
+  final QuizSessionSource source;
   final int requestedQuestionCount;
   final List<QuizSessionQuestion> questions;
   final int currentQuestionIndex;
@@ -137,6 +140,7 @@ class QuizSessionState {
     String? sessionId,
     String? topicId,
     QuizMode? mode,
+    QuizSessionSource? source,
     int? requestedQuestionCount,
     List<QuizSessionQuestion>? questions,
     int? currentQuestionIndex,
@@ -157,6 +161,7 @@ class QuizSessionState {
       sessionId: clearSessionId ? null : sessionId ?? this.sessionId,
       topicId: topicId ?? this.topicId,
       mode: mode ?? this.mode,
+      source: source ?? this.source,
       requestedQuestionCount:
           requestedQuestionCount ?? this.requestedQuestionCount,
       questions: questions ?? this.questions,

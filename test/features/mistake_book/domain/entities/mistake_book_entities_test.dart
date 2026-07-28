@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pengajian_am_stpm_objektif/features/mistake_book/domain/entities/mistake_book_question_item.dart';
 import 'package:pengajian_am_stpm_objektif/features/mistake_book/domain/entities/mistake_book_snapshot.dart';
+import 'package:pengajian_am_stpm_objektif/features/mistake_book/domain/entities/mistake_book_topic_detail.dart';
 import 'package:pengajian_am_stpm_objektif/features/mistake_book/domain/entities/mistake_book_topic_summary.dart';
 
 void main() {
@@ -49,4 +51,53 @@ void main() {
       expect(topic.masteryProgress, 0.75);
     });
   });
+
+  group('MistakeBookQuestionItem', () {
+    test('mendedahkan jawapan dan status semakan dengan tepat', () {
+      final item = _sampleQuestionItem();
+
+      expect(item.needsReview, isTrue);
+      expect(item.isMastered, isFalse);
+      expect(item.selectedAnswerText, 'Pilihan A');
+      expect(item.correctAnswerText, 'Pilihan B');
+    });
+  });
+
+  group('MistakeBookTopicDetail', () {
+    test('mengira jumlah dan penguasaan detail topik', () {
+      final detail = MistakeBookTopicDetail(
+        generatedAt: DateTime.utc(2026, 7, 27, 8),
+        topicId: 'topic-1',
+        topicCode: 'S1-01',
+        topicTitle: 'Kemahiran Insaniah',
+        semester: 1,
+        sortOrder: 1,
+        needsReviewCount: 1,
+        masteredCount: 0,
+        items: [_sampleQuestionItem()],
+      );
+
+      expect(detail.totalTrackedCount, 1);
+      expect(detail.isEmpty, isFalse);
+      expect(detail.masteryProgress, 0);
+    });
+  });
+}
+
+MistakeBookQuestionItem _sampleQuestionItem() {
+  return MistakeBookQuestionItem(
+    questionId: 'question-1',
+    questionText: 'Apakah jawapan yang betul?',
+    options: const ['Pilihan A', 'Pilihan B', 'Pilihan C', 'Pilihan D'],
+    selectedOptionIndex: 0,
+    correctOptionIndex: 1,
+    explanation: 'Pilihan B ialah jawapan yang betul.',
+    status: MistakeBookQuestionStatus.needsReview,
+    incorrectCount: 2,
+    reviewCount: 0,
+    firstIncorrectAt: DateTime.utc(2026, 7, 26, 8),
+    lastIncorrectAt: DateTime.utc(2026, 7, 27, 8),
+    lastReviewedAt: null,
+    masteredAt: null,
+  );
 }

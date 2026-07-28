@@ -10,6 +10,8 @@ import '../../../../core/widgets/app_text_field.dart';
 import '../../../analytics/presentation/controllers/topic_analytics_controller.dart';
 import '../../../home/presentation/controllers/home_controller.dart';
 import '../../../leaderboard/presentation/controllers/leaderboard_controller.dart';
+import '../../../mistake_book/presentation/controllers/mistake_book_controller.dart';
+import '../../../mistake_book/presentation/controllers/mistake_book_topic_controller.dart';
 import '../../../profile/presentation/controllers/profile_controller.dart';
 import '../../../progress/presentation/controllers/user_progress_controller.dart';
 import '../../../quiz/presentation/controllers/quiz_history_controller.dart';
@@ -187,6 +189,10 @@ class _DeleteAccountPageState extends ConsumerState<DeleteAccountPage> {
     ref.read(quizHistoryControllerProvider.notifier).reset();
 
     ref.read(topicAnalyticsControllerProvider.notifier).reset();
+
+    ref.read(mistakeBookControllerProvider.notifier).reset();
+
+    ref.read(mistakeBookTopicControllerProvider.notifier).reset();
 
     ref.read(quizSetupControllerProvider.notifier).reset();
 

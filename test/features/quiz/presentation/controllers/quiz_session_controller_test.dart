@@ -12,6 +12,7 @@ import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_qu
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_result.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_session.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_session_question.dart';
+import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_session_source.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_session_validation.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_submission.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/exceptions/quiz_draft_failure.dart';
@@ -32,6 +33,9 @@ class _FakeQuizRepository implements QuizRepository {
 
   QuizSessionServerStatus validationStatus = QuizSessionServerStatus.active;
 
+  QuizSessionSource validationSource = QuizSessionSource.standard;
+  QuizSessionSource activeSource = QuizSessionSource.standard;
+
   QuizFailure? validationFailure;
   QuizFailure? startFailure;
 
@@ -43,6 +47,8 @@ class _FakeQuizRepository implements QuizRepository {
     required QuizMode mode,
     required int questionCount,
   }) async {
+    activeSource = QuizSessionSource.standard;
+
     final failure = startFailure;
 
     if (failure != null) {
@@ -53,6 +59,45 @@ class _FakeQuizRepository implements QuizRepository {
       sessionId: '00000000-0000-0000-0000-000000000001',
       topicId: topicId,
       mode: mode,
+      questionCount: 2,
+      expiresAt: DateTime.now().add(const Duration(hours: 2)),
+      questions: [
+        QuizSessionQuestion(
+          id: 'q1',
+          topicId: topicId,
+          questionText: 'Soalan satu',
+          options: const ['Betul', 'Salah'],
+          questionOrder: 1,
+        ),
+        QuizSessionQuestion(
+          id: 'q2',
+          topicId: topicId,
+          questionText: 'Soalan dua',
+          options: const ['Salah', 'Betul'],
+          questionOrder: 2,
+        ),
+      ],
+    );
+  }
+
+  @override
+  Future<QuizSession> startMistakeReview({
+    required String topicId,
+    required int questionCount,
+  }) async {
+    final failure = startFailure;
+
+    if (failure != null) {
+      throw failure;
+    }
+
+    activeSource = QuizSessionSource.mistakeReview;
+
+    return QuizSession(
+      sessionId: '00000000-0000-0000-0000-000000000003',
+      topicId: topicId,
+      mode: QuizMode.practice,
+      source: QuizSessionSource.mistakeReview,
       questionCount: 2,
       expiresAt: DateTime.now().add(const Duration(hours: 2)),
       questions: [
@@ -104,6 +149,7 @@ class _FakeQuizRepository implements QuizRepository {
       serverTime: now,
       topicId: 'topic-s1-03',
       mode: QuizMode.practice,
+      source: validationSource,
       questionCount: 2,
       createdAt: now.subtract(const Duration(minutes: 5)),
       expiresAt: validationStatus == QuizSessionServerStatus.expired
@@ -118,10 +164,13 @@ class _FakeQuizRepository implements QuizRepository {
   @override
   Future<QuizSubmission> submitQuiz({
     required String sessionId,
+    required QuizSessionSource sessionSource,
     required Map<String, int> selectedAnswers,
     required Duration elapsedTime,
     required bool autoSubmitted,
   }) async {
+    expect(sessionSource, activeSource);
+
     submittedAnswers = Map<String, int>.from(selectedAnswers);
 
     onServerSubmit();
@@ -131,6 +180,7 @@ class _FakeQuizRepository implements QuizRepository {
       topicCode: 'S1-02',
       topicTitle: 'Negara Berdaulat',
       mode: QuizMode.practice,
+      sessionSource: activeSource,
       questions: [
         QuizQuestion(
           id: 'q1',
@@ -154,14 +204,14 @@ class _FakeQuizRepository implements QuizRepository {
       selectedAnswers: Map<String, int>.unmodifiable(selectedAnswers),
       correctAnswers: 1,
       answeredQuestions: selectedAnswers.length,
-      earnedXp: 30,
+      earnedXp: activeSource == QuizSessionSource.mistakeReview ? 0 : 30,
       elapsedTime: elapsedTime,
       autoSubmitted: autoSubmitted,
     );
 
     return QuizSubmission(
       attemptId: '00000000-0000-0000-0000-000000000002',
-      earnedXp: 30,
+      earnedXp: activeSource == QuizSessionSource.mistakeReview ? 0 : 30,
       completedAt: DateTime(2026, 7, 17, 11),
       result: result,
     );
@@ -194,8 +244,12 @@ class _FakeUserProgressRepository implements UserProgressRepository {
 }
 
 class _FakeQuizHistoryRepository implements QuizHistoryRepository {
+  int fetchCallCount = 0;
+
   @override
   Future<QuizHistorySnapshot> fetchHistory({int limit = 30}) async {
+    fetchCallCount++;
+
     return QuizHistorySnapshot(
       generatedAt: DateTime(2026, 7, 17, 10),
       totalCount: 0,
@@ -423,6 +477,58 @@ void main() {
     expect(draftRepository.storedDraft, isNull);
 
     expect(quizRepository.submittedAnswers, {'q1': 0, 'q2': 0});
+  });
+
+  test('latihan semula tidak merekod XP atau sejarah kuiz standard', () async {
+    final progressRepository = _FakeUserProgressRepository(
+      storedProgress: _createProgressBeforeQuiz(),
+    );
+    final historyRepository = _FakeQuizHistoryRepository();
+    final draftRepository = _FakeQuizDraftRepository();
+    final quizRepository = _FakeQuizRepository(onServerSubmit: () {});
+
+    final container = ProviderContainer(
+      overrides: [
+        quizRepositoryProvider.overrideWithValue(quizRepository),
+        quizDraftRepositoryProvider.overrideWithValue(draftRepository),
+        quizDraftOwnerIdProvider.overrideWithValue('current-user'),
+        userProgressRepositoryProvider.overrideWithValue(progressRepository),
+        quizHistoryRepositoryProvider.overrideWithValue(historyRepository),
+      ],
+    );
+
+    addTearDown(container.dispose);
+
+    final controller = container.read(quizSessionControllerProvider.notifier);
+
+    await controller.startMistakeReview(
+      topicId: 'topic-s1-02',
+      questionCount: 2,
+    );
+
+    var state = container.read(quizSessionControllerProvider);
+
+    expect(state.status, QuizSessionStatus.ready);
+    expect(state.source, QuizSessionSource.mistakeReview);
+    expect(
+      draftRepository.storedDraft?.source,
+      QuizSessionSource.mistakeReview,
+    );
+
+    controller.selectAnswer(0);
+    controller.nextQuestion();
+    controller.selectAnswer(0);
+
+    await controller.submitQuiz();
+
+    state = container.read(quizSessionControllerProvider);
+
+    expect(state.status, QuizSessionStatus.completed);
+    expect(state.result?.sessionSource, QuizSessionSource.mistakeReview);
+    expect(state.result?.earnedXp, 0);
+    expect(progressRepository.loadCallCount, 0);
+    expect(historyRepository.fetchCallCount, 0);
+    expect(draftRepository.storedDraft, isNull);
   });
 
   test('memuatkan dan memulihkan draft aktif', () async {

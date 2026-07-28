@@ -65,9 +65,11 @@ class MistakeBookController extends Notifier<MistakeBookState> {
   Future<void> _loadInternal() async {
     final requestGeneration = ++_requestGeneration;
 
+    final existingSnapshot = state.snapshot;
+
     state = MistakeBookState(
       status: MistakeBookStatus.loading,
-      snapshot: state.snapshot,
+      snapshot: existingSnapshot,
     );
 
     late final MistakeBookState resultState;
@@ -82,11 +84,13 @@ class MistakeBookController extends Notifier<MistakeBookState> {
     } on MistakeBookFailure catch (error) {
       resultState = MistakeBookState(
         status: MistakeBookStatus.failure,
+        snapshot: existingSnapshot,
         errorMessage: error.message,
       );
     } catch (_) {
-      resultState = const MistakeBookState(
+      resultState = MistakeBookState(
         status: MistakeBookStatus.failure,
+        snapshot: existingSnapshot,
         errorMessage:
             'Buku Kesilapan tidak dapat '
             'dimuatkan. Sila cuba semula.',
@@ -105,6 +109,7 @@ class MistakeBookController extends Notifier<MistakeBookState> {
   void reset() {
     _requestGeneration++;
     _activeRequest = null;
+
     state = const MistakeBookState();
   }
 }

@@ -5,11 +5,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/network/presentation/providers/network_request_executor_provider.dart';
 import '../../../../core/services/supabase_client_provider.dart';
 import '../../../mistake_book/presentation/controllers/mistake_book_controller.dart';
+import '../../../mistake_book/presentation/controllers/mistake_book_topic_controller.dart';
 import '../../../progress/presentation/controllers/user_progress_controller.dart';
 import '../../data/repositories/shared_preferences_quiz_draft_repository.dart';
 import '../../data/repositories/supabase_quiz_repository.dart';
 import '../../domain/entities/quiz_draft.dart';
 import '../../domain/entities/quiz_mode.dart';
+import '../../domain/entities/quiz_session.dart';
+import '../../domain/entities/quiz_session_source.dart';
 import '../../domain/entities/quiz_session_validation.dart';
 import '../../domain/exceptions/quiz_draft_failure.dart';
 import '../../domain/exceptions/quiz_failure.dart';
@@ -110,6 +113,60 @@ class QuizSessionController extends Notifier<QuizSessionState> {
     required String topicId,
     required QuizMode mode,
     required int questionCount,
+  }) {
+    return _startSession(
+      topicId: topicId,
+      mode: mode,
+      source: QuizSessionSource.standard,
+      questionCount: questionCount,
+      loadSession: () {
+        return _repository.startQuiz(
+          topicId: topicId,
+          mode: mode,
+          questionCount: questionCount,
+        );
+      },
+      emptyMessage:
+          'Tiada soalan tersedia '
+          'untuk topik ini.',
+      failureMessage:
+          'Kuiz tidak dapat dimulakan. '
+          'Sila cuba semula.',
+    );
+  }
+
+  Future<void> startMistakeReview({
+    required String topicId,
+    required int questionCount,
+  }) {
+    return _startSession(
+      topicId: topicId,
+      mode: QuizMode.practice,
+      source: QuizSessionSource.mistakeReview,
+      questionCount: questionCount,
+      loadSession: () {
+        return _repository.startMistakeReview(
+          topicId: topicId,
+          questionCount: questionCount,
+        );
+      },
+      emptyMessage:
+          'Tiada soalan yang perlu '
+          'dijawab semula untuk topik ini.',
+      failureMessage:
+          'Latihan semula tidak dapat '
+          'dimulakan. Sila cuba semula.',
+    );
+  }
+
+  Future<void> _startSession({
+    required String topicId,
+    required QuizMode mode,
+    required QuizSessionSource source,
+    required int questionCount,
+    required Future<QuizSession> Function() loadSession,
+    required String emptyMessage,
+    required String failureMessage,
   }) async {
     _cancelTimer();
 
@@ -127,25 +184,36 @@ class QuizSessionController extends Notifier<QuizSessionState> {
       status: QuizSessionStatus.loading,
       topicId: topicId,
       mode: mode,
+      source: source,
       requestedQuestionCount: questionCount,
     );
 
     try {
-      final quizSession = await _repository.startQuiz(
-        topicId: topicId,
-        mode: mode,
-        questionCount: questionCount,
-      );
+      final quizSession = await loadSession();
 
       if (quizSession.questions.isEmpty) {
         state = QuizSessionState(
           status: QuizSessionStatus.failure,
           topicId: topicId,
           mode: mode,
+          source: source,
+          requestedQuestionCount: questionCount,
+          errorMessage: emptyMessage,
+        );
+
+        return;
+      }
+
+      if (quizSession.source != source) {
+        state = QuizSessionState(
+          status: QuizSessionStatus.failure,
+          topicId: topicId,
+          mode: mode,
+          source: source,
           requestedQuestionCount: questionCount,
           errorMessage:
-              'Tiada soalan tersedia '
-              'untuk topik ini.',
+              'Sumber sesi daripada server '
+              'tidak sepadan.',
         );
 
         return;
@@ -203,6 +271,7 @@ class QuizSessionController extends Notifier<QuizSessionState> {
         sessionId: quizSession.sessionId,
         topicId: quizSession.topicId,
         mode: quizSession.mode,
+        source: quizSession.source,
         requestedQuestionCount: quizSession.questionCount,
         questions: quizSession.questions,
         remainingSeconds: remainingSeconds,
@@ -233,6 +302,7 @@ class QuizSessionController extends Notifier<QuizSessionState> {
         status: QuizSessionStatus.failure,
         topicId: topicId,
         mode: mode,
+        source: source,
         requestedQuestionCount: questionCount,
         errorMessage: error.message,
       );
@@ -241,10 +311,9 @@ class QuizSessionController extends Notifier<QuizSessionState> {
         status: QuizSessionStatus.failure,
         topicId: topicId,
         mode: mode,
+        source: source,
         requestedQuestionCount: questionCount,
-        errorMessage:
-            'Kuiz tidak dapat dimulakan. '
-            'Sila cuba semula.',
+        errorMessage: failureMessage,
       );
     }
   }
@@ -465,6 +534,7 @@ class QuizSessionController extends Notifier<QuizSessionState> {
       sessionId: draft.sessionId,
       topicId: draft.topicId,
       mode: draft.mode,
+      source: draft.source,
       requestedQuestionCount: draft.questionCount,
       questions: draft.questions,
       currentQuestionIndex: draft.currentQuestionIndex,
@@ -554,43 +624,54 @@ class QuizSessionController extends Notifier<QuizSessionState> {
     try {
       final submission = await _repository.submitQuiz(
         sessionId: sessionId,
+        sessionSource: state.source,
         selectedAnswers: state.selectedAnswers,
         elapsedTime: elapsedTime,
         autoSubmitted: autoSubmitted,
       );
 
+      if (submission.result.sessionSource != state.source) {
+        throw const QuizFailure(
+          'Sumber keputusan daripada server '
+          'tidak sepadan.',
+        );
+      }
+
       ref.invalidate(mistakeBookControllerProvider);
+      ref.invalidate(mistakeBookTopicControllerProvider);
 
       await _deleteDraftSafely();
 
-      try {
-        await ref
-            .read(userProgressControllerProvider.notifier)
-            .recordServerQuizResult(
-              result: submission.result,
-              earnedXp: submission.earnedXp,
-            );
-      } catch (_) {
-        /*
-         * Progress sebenar telah disimpan
-         * secara transaction pada server.
-         */
-      }
+      if (state.source == QuizSessionSource.standard) {
+        try {
+          await ref
+              .read(userProgressControllerProvider.notifier)
+              .recordServerQuizResult(
+                result: submission.result,
+                earnedXp: submission.earnedXp,
+              );
+        } catch (_) {
+          /*
+           * Progress sebenar telah disimpan
+           * secara transaction pada server.
+           */
+        }
 
-      try {
-        await ref
-            .read(quizHistoryControllerProvider.notifier)
-            .recordServerAttempt(
-              attemptId: submission.attemptId,
-              completedAt: submission.completedAt,
-              earnedXp: submission.earnedXp,
-              result: submission.result,
-            );
-      } catch (_) {
-        /*
-         * Attempt sebenar telah disimpan
-         * secara transaction pada server.
-         */
+        try {
+          await ref
+              .read(quizHistoryControllerProvider.notifier)
+              .recordServerAttempt(
+                attemptId: submission.attemptId,
+                completedAt: submission.completedAt,
+                earnedXp: submission.earnedXp,
+                result: submission.result,
+              );
+        } catch (_) {
+          /*
+           * Attempt sebenar telah disimpan
+           * secara transaction pada server.
+           */
+        }
       }
 
       state = state.copyWith(
@@ -686,6 +767,10 @@ class QuizSessionController extends Notifier<QuizSessionState> {
       return null;
     }
 
+    if (validation.source != draft.source) {
+      return null;
+    }
+
     if (validation.questionCount != draft.questionCount) {
       return null;
     }
@@ -721,6 +806,7 @@ class QuizSessionController extends Notifier<QuizSessionState> {
         sessionId: sessionId,
         topicId: topicId,
         mode: state.mode,
+        source: state.source,
         questionCount: state.questions.length,
         questions: List.unmodifiable(state.questions),
         currentQuestionIndex: state.currentQuestionIndex,

@@ -26,30 +26,17 @@ class _MistakeBookPageState extends ConsumerState<MistakeBookPage> {
     super.initState();
 
     Future<void>.microtask(() {
-      return ref.read(mistakeBookControllerProvider.notifier).loadMistakeBook();
+      return ref
+          .read(mistakeBookControllerProvider.notifier)
+          .refreshMistakeBook();
     });
   }
 
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(mistakeBookControllerProvider);
+
     final controller = ref.read(mistakeBookControllerProvider.notifier);
-
-    if (state.status == MistakeBookStatus.initial) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) {
-          return;
-        }
-
-        final latestState = ref.read(mistakeBookControllerProvider);
-
-        if (latestState.status != MistakeBookStatus.initial) {
-          return;
-        }
-
-        ref.read(mistakeBookControllerProvider.notifier).loadMistakeBook();
-      });
-    }
 
     return Scaffold(
       appBar: AppBar(
@@ -58,61 +45,95 @@ class _MistakeBookPageState extends ConsumerState<MistakeBookPage> {
           onPressed: () {
             if (context.canPop()) {
               context.pop();
-            } else {
-              context.goNamed(RouteNames.home);
+              return;
             }
+
+            context.goNamed(RouteNames.home);
           },
           icon: const Icon(Icons.arrow_back_rounded),
         ),
         title: const Text('Buku Kesilapan'),
-        actions: [
-          IconButton(
-            tooltip: 'Muat semula Buku Kesilapan',
-            onPressed: state.isLoading ? null : controller.refreshMistakeBook,
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-        ],
       ),
       body: SafeArea(
-        child: switch (state.status) {
-          MistakeBookStatus.initial => const _MistakeBookLoadingView(),
-
-          MistakeBookStatus.loading =>
-            state.snapshot == null
-                ? const _MistakeBookLoadingView()
-                : _MistakeBookContent(
-                    snapshot: state.snapshot!,
-                    onRefresh: controller.refreshMistakeBook,
-                  ),
-
-          MistakeBookStatus.failure => _MistakeBookErrorView(
-            message:
-                state.errorMessage ?? 'Buku Kesilapan tidak dapat dimuatkan.',
-            onRetry: controller.refreshMistakeBook,
-          ),
-
-          MistakeBookStatus.success =>
-            state.snapshot == null
-                ? _MistakeBookErrorView(
-                    message: 'Data Buku Kesilapan tidak tersedia.',
-                    onRetry: controller.refreshMistakeBook,
-                  )
-                : _MistakeBookContent(
-                    snapshot: state.snapshot!,
-                    onRefresh: controller.refreshMistakeBook,
-                  ),
-        },
+        child: _buildContent(
+          state: state,
+          onRefresh: controller.refreshMistakeBook,
+        ),
       ),
     );
+  }
+
+  Widget _buildContent({
+    required MistakeBookState state,
+    required Future<void> Function() onRefresh,
+  }) {
+    switch (state.status) {
+      case MistakeBookStatus.initial:
+        return const _MistakeBookLoadingView();
+
+      case MistakeBookStatus.loading:
+        final snapshot = state.snapshot;
+
+        if (snapshot == null) {
+          return const _MistakeBookLoadingView();
+        }
+
+        return _MistakeBookContent(
+          snapshot: snapshot,
+          onRefresh: onRefresh,
+          isRefreshing: true,
+        );
+
+      case MistakeBookStatus.failure:
+        final snapshot = state.snapshot;
+
+        if (snapshot == null) {
+          return _MistakeBookErrorView(
+            message:
+                state.errorMessage ?? 'Buku Kesilapan tidak dapat dimuatkan.',
+            onRetry: onRefresh,
+          );
+        }
+
+        return _MistakeBookContent(
+          snapshot: snapshot,
+          onRefresh: onRefresh,
+          staleErrorMessage:
+              state.errorMessage ??
+              'Data baharu tidak dapat dimuatkan. '
+                  'Data terakhir masih dipaparkan.',
+        );
+
+      case MistakeBookStatus.success:
+        final snapshot = state.snapshot;
+
+        if (snapshot == null) {
+          return _MistakeBookErrorView(
+            message: 'Data Buku Kesilapan tidak tersedia.',
+            onRetry: onRefresh,
+          );
+        }
+
+        return _MistakeBookContent(snapshot: snapshot, onRefresh: onRefresh);
+    }
   }
 }
 
 class _MistakeBookContent extends StatelessWidget {
-  const _MistakeBookContent({required this.snapshot, required this.onRefresh});
+  const _MistakeBookContent({
+    required this.snapshot,
+    required this.onRefresh,
+    this.isRefreshing = false,
+    this.staleErrorMessage,
+  });
 
   final MistakeBookSnapshot snapshot;
 
   final Future<void> Function() onRefresh;
+
+  final bool isRefreshing;
+
+  final String? staleErrorMessage;
 
   @override
   Widget build(BuildContext context) {
@@ -127,9 +148,18 @@ class _MistakeBookContent extends StatelessWidget {
     return RefreshIndicator(
       onRefresh: onRefresh,
       child: ListView(
+        key: const PageStorageKey<String>('mistake-book-main-list'),
         physics: const AlwaysScrollableScrollPhysics(),
         padding: AppSpacing.screenPadding,
         children: [
+          if (isRefreshing) ...[
+            const LinearProgressIndicator(minHeight: 3),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+          if (staleErrorMessage != null) ...[
+            _MistakeBookStaleDataWarning(message: staleErrorMessage!),
+            const SizedBox(height: AppSpacing.md),
+          ],
           _MistakeBookOverview(snapshot: snapshot),
           const SizedBox(height: AppSpacing.lg),
           const _MistakeBookExplanation(),
@@ -153,7 +183,8 @@ class _MistakeBookContent extends StatelessWidget {
             ],
           ],
           Text(
-            'Dikemas kini ${_formatDateTime(snapshot.generatedAt)}',
+            'Dikemas kini '
+            '${_formatDateTime(snapshot.generatedAt)}',
             textAlign: TextAlign.center,
             style: Theme.of(
               context,
@@ -176,6 +207,7 @@ class _MistakeBookOverview extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
 
     return Container(
+      key: const Key('mistake-book-overview'),
       padding: AppSpacing.largeCardPadding,
       decoration: const BoxDecoration(
         color: AppColors.primary,
@@ -212,7 +244,8 @@ class _MistakeBookOverview extends StatelessWidget {
                     ),
                     const SizedBox(height: AppSpacing.xxs),
                     Text(
-                      '${snapshot.totalTrackedCount} soalan sedang dijejaki.',
+                      '${snapshot.totalTrackedCount} '
+                      'soalan sedang dijejaki.',
                       style: textTheme.bodyMedium?.copyWith(
                         color: Colors.white70,
                       ),
@@ -238,10 +271,10 @@ class _MistakeBookOverview extends StatelessWidget {
                   SizedBox(
                     width: cardWidth,
                     child: _SummaryMetric(
-                      key: const Key('mistake-book-needs-review'),
+                      key: const Key('mistake-book-reviewable'),
                       icon: Icons.replay_rounded,
-                      label: 'Perlu Disemak',
-                      value: snapshot.needsReviewCount,
+                      label: 'Boleh Dilatih',
+                      value: snapshot.reviewableCount,
                       foregroundColor: AppColors.warning,
                       backgroundColor: AppColors.warningBackground,
                     ),
@@ -255,6 +288,29 @@ class _MistakeBookOverview extends StatelessWidget {
                       value: snapshot.masteredCount,
                       foregroundColor: AppColors.success,
                       backgroundColor: AppColors.successBackground,
+                    ),
+                  ),
+                  if (snapshot.archivedNeedsReviewCount > 0)
+                    SizedBox(
+                      width: cardWidth,
+                      child: _SummaryMetric(
+                        key: const Key('mistake-book-archived'),
+                        icon: Icons.inventory_2_outlined,
+                        label: 'Diarkibkan',
+                        value: snapshot.archivedNeedsReviewCount,
+                        foregroundColor: AppColors.secondaryText,
+                        backgroundColor: AppColors.surfaceMuted,
+                      ),
+                    ),
+                  SizedBox(
+                    width: cardWidth,
+                    child: _SummaryMetric(
+                      key: const Key('mistake-book-needs-review'),
+                      icon: Icons.pending_actions_rounded,
+                      label: 'Belum Dikuasai',
+                      value: snapshot.needsReviewCount,
+                      foregroundColor: AppColors.info,
+                      backgroundColor: AppColors.infoBackground,
                     ),
                   ),
                 ],
@@ -316,6 +372,8 @@ class _SummaryMetric extends StatelessWidget {
                 Text('$value', style: textTheme.titleLarge),
                 Text(
                   label,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: textTheme.bodySmall?.copyWith(
                     color: AppColors.secondaryText,
                   ),
@@ -347,9 +405,11 @@ class _MistakeBookExplanation extends StatelessWidget {
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Text(
-              'Soalan yang dijawab salah ditambah secara automatik. '
-              'Jawapan betul dalam latihan semula akan menandakan '
-              'soalan sebagai dikuasai.',
+              'Soalan yang dijawab salah ditambah '
+              'secara automatik. Soalan aktif boleh '
+              'dilatih semula sehingga dikuasai. '
+              'Soalan yang tidak lagi aktif disimpan '
+              'sebagai rekod diarkibkan.',
               style: Theme.of(
                 context,
               ).textTheme.bodyMedium?.copyWith(color: AppColors.primary),
@@ -386,103 +446,139 @@ class _MistakeBookTopicCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
 
-    return Container(
-      key: Key('mistake-book-topic-${topic.topicId}'),
-      padding: AppSpacing.cardPadding,
-      decoration: BoxDecoration(
+    return Semantics(
+      button: true,
+      label:
+          'Buka soalan kesilapan bagi '
+          '${topic.topicTitle}',
+      child: Material(
         color: AppColors.surface,
-        borderRadius: AppRadius.large,
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.sm,
-                  vertical: AppSpacing.xs,
+        shape: RoundedRectangleBorder(
+          borderRadius: AppRadius.large,
+          side: const BorderSide(color: AppColors.border),
+        ),
+        child: InkWell(
+          key: Key('mistake-book-topic-${topic.topicId}'),
+          borderRadius: AppRadius.large,
+          onTap: () {
+            context.pushNamed(
+              RouteNames.mistakeBookTopic,
+              pathParameters: {'topicId': topic.topicId},
+            );
+          },
+          child: Padding(
+            padding: AppSpacing.cardPadding,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.sm,
+                        vertical: AppSpacing.xs,
+                      ),
+                      decoration: const BoxDecoration(
+                        color: AppColors.softBlue,
+                        borderRadius: AppRadius.medium,
+                      ),
+                      child: Text(
+                        topic.topicCode,
+                        style: textTheme.labelMedium?.copyWith(
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: Text(
+                        topic.topicTitle,
+                        style: textTheme.titleMedium,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.xs),
+                    const Icon(
+                      Icons.chevron_right_rounded,
+                      color: AppColors.secondaryText,
+                    ),
+                  ],
                 ),
-                decoration: const BoxDecoration(
-                  color: AppColors.softBlue,
-                  borderRadius: AppRadius.medium,
+                const SizedBox(height: AppSpacing.md),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _TopicCount(
+                        icon: Icons.replay_rounded,
+                        label: 'Boleh Dilatih',
+                        value: topic.reviewableCount,
+                        color: AppColors.warning,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: _TopicCount(
+                        icon: Icons.verified_rounded,
+                        label: 'Dikuasai',
+                        value: topic.masteredCount,
+                        color: AppColors.success,
+                      ),
+                    ),
+                  ],
                 ),
-                child: Text(
-                  topic.topicCode,
-                  style: textTheme.labelMedium?.copyWith(
-                    color: AppColors.primary,
+                if (topic.archivedNeedsReviewCount > 0) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  _ArchivedTopicNotice(
+                    archivedCount: topic.archivedNeedsReviewCount,
+                  ),
+                ],
+                const SizedBox(height: AppSpacing.md),
+                Row(
+                  children: [
+                    Text(
+                      'Penguasaan',
+                      style: textTheme.labelMedium?.copyWith(
+                        color: AppColors.secondaryText,
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      '${(topic.masteryProgress * 100).round()}%',
+                      style: textTheme.labelLarge?.copyWith(
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Semantics(
+                  label:
+                      'Penguasaan '
+                      '${topic.topicTitle} '
+                      '${(topic.masteryProgress * 100).round()} '
+                      'peratus',
+                  child: ClipRRect(
+                    borderRadius: AppRadius.fullyRounded,
+                    child: LinearProgressIndicator(
+                      value: topic.masteryProgress,
+                      minHeight: 8,
+                      backgroundColor: AppColors.surfaceMuted,
+                      color: AppColors.success,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: Text(topic.topicTitle, style: textTheme.titleMedium),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Row(
-            children: [
-              Expanded(
-                child: _TopicCount(
-                  icon: Icons.replay_rounded,
-                  label: 'Perlu disemak',
-                  value: topic.needsReviewCount,
-                  color: AppColors.warning,
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  'Kesilapan terakhir: '
+                  '${_formatDate(topic.lastMistakeAt)}',
+                  style: textTheme.bodySmall?.copyWith(
+                    color: AppColors.secondaryText,
+                  ),
                 ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: _TopicCount(
-                  icon: Icons.verified_rounded,
-                  label: 'Dikuasai',
-                  value: topic.masteredCount,
-                  color: AppColors.success,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Row(
-            children: [
-              Text(
-                'Penguasaan',
-                style: textTheme.labelMedium?.copyWith(
-                  color: AppColors.secondaryText,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                '${(topic.masteryProgress * 100).round()}%',
-                style: textTheme.labelLarge?.copyWith(color: AppColors.primary),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Semantics(
-            label:
-                'Penguasaan ${topic.topicTitle} '
-                '${(topic.masteryProgress * 100).round()} peratus',
-            child: ClipRRect(
-              borderRadius: AppRadius.fullyRounded,
-              child: LinearProgressIndicator(
-                value: topic.masteryProgress,
-                minHeight: 8,
-                backgroundColor: AppColors.surfaceMuted,
-                color: AppColors.success,
-              ),
+              ],
             ),
           ),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            'Kesilapan terakhir: ${_formatDate(topic.lastMistakeAt)}',
-            style: textTheme.bodySmall?.copyWith(
-              color: AppColors.secondaryText,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -519,7 +615,7 @@ class _TopicCount extends StatelessWidget {
               Text('$value', style: textTheme.titleSmall),
               Text(
                 label,
-                maxLines: 1,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: textTheme.bodySmall?.copyWith(
                   color: AppColors.secondaryText,
@@ -529,6 +625,96 @@ class _TopicCount extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _ArchivedTopicNotice extends StatelessWidget {
+  const _ArchivedTopicNotice({required this.archivedCount});
+
+  final int archivedCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = archivedCount == 1
+        ? '1 soalan diarkibkan'
+        : '$archivedCount soalan diarkibkan';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.xs,
+      ),
+      decoration: const BoxDecoration(
+        color: AppColors.surfaceMuted,
+        borderRadius: AppRadius.medium,
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.inventory_2_outlined,
+            size: 18,
+            color: AppColors.secondaryText,
+          ),
+          const SizedBox(width: AppSpacing.xs),
+          Expanded(
+            child: Text(
+              '$text dan tidak dimasukkan '
+              'ke dalam latihan.',
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: AppColors.secondaryText),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MistakeBookStaleDataWarning extends StatelessWidget {
+  const _MistakeBookStaleDataWarning({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const Key('mistake-book-stale-data-warning'),
+      width: double.infinity,
+      padding: AppSpacing.cardPadding,
+      decoration: const BoxDecoration(
+        color: AppColors.warningBackground,
+        borderRadius: AppRadius.large,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.cloud_off_rounded, color: AppColors.warning),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Data Terakhir Dipaparkan',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(color: AppColors.warning),
+                ),
+                const SizedBox(height: AppSpacing.xxs),
+                Text(
+                  message,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: AppColors.primaryText),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -562,8 +748,9 @@ class _MistakeBookEmptyView extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            'Soalan yang dijawab salah selepas anda menghantar '
-            'kuiz akan muncul di sini.',
+            'Soalan yang dijawab salah selepas '
+            'anda menghantar kuiz akan muncul '
+            'di sini.',
             textAlign: TextAlign.center,
             style: textTheme.bodyMedium?.copyWith(
               color: AppColors.secondaryText,
@@ -627,6 +814,7 @@ String _formatDate(DateTime value) {
   final localValue = value.toLocal();
 
   final day = localValue.day.toString().padLeft(2, '0');
+
   final month = localValue.month.toString().padLeft(2, '0');
 
   return '$day/$month/${localValue.year}';
@@ -636,7 +824,9 @@ String _formatDateTime(DateTime value) {
   final localValue = value.toLocal();
 
   final hour = localValue.hour.toString().padLeft(2, '0');
+
   final minute = localValue.minute.toString().padLeft(2, '0');
 
-  return '${_formatDate(localValue)} pada $hour:$minute';
+  return '${_formatDate(localValue)} '
+      'pada $hour:$minute';
 }

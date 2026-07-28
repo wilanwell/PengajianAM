@@ -1,4 +1,5 @@
 import 'quiz_mode.dart';
+import 'quiz_session_source.dart';
 
 enum QuizSessionServerStatus { active, submitted, expired, notFound }
 
@@ -10,6 +11,7 @@ class QuizSessionValidation {
     required this.serverTime,
     this.topicId,
     this.mode,
+    this.source = QuizSessionSource.standard,
     this.questionCount,
     this.createdAt,
     this.expiresAt,
@@ -23,6 +25,7 @@ class QuizSessionValidation {
 
   final String? topicId;
   final QuizMode? mode;
+  final QuizSessionSource? source;
   final int? questionCount;
 
   final DateTime? createdAt;
@@ -54,12 +57,17 @@ class QuizSessionValidation {
         status: status,
         canResume: false,
         serverTime: serverTime,
+        source: null,
       );
     }
 
     final topicId = _readRequiredString(json, 'topicId');
 
     final mode = _readMode(json, 'mode');
+
+    final source = quizSessionSourceFromServerValue(
+      _readRequiredString(json, 'sessionSource'),
+    );
 
     final questionCount = _readRequiredInt(json, 'questionCount', minimum: 1);
 
@@ -97,6 +105,7 @@ class QuizSessionValidation {
       serverTime: serverTime,
       topicId: topicId,
       mode: mode,
+      source: source,
       questionCount: questionCount,
       createdAt: createdAt,
       expiresAt: expiresAt,

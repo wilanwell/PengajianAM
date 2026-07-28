@@ -8,6 +8,8 @@ import '../../features/authentication/presentation/controllers/password_recovery
 import '../../features/authentication/presentation/controllers/register_controller.dart';
 import '../../features/home/presentation/controllers/home_controller.dart';
 import '../../features/leaderboard/presentation/controllers/leaderboard_controller.dart';
+import '../../features/mistake_book/presentation/controllers/mistake_book_controller.dart';
+import '../../features/mistake_book/presentation/controllers/mistake_book_topic_controller.dart';
 import '../../features/profile/presentation/controllers/profile_controller.dart';
 import '../../features/progress/presentation/controllers/user_progress_controller.dart';
 import '../../features/quiz/presentation/controllers/quiz_history_controller.dart';
@@ -94,6 +96,10 @@ class AppLogoutController extends Notifier<bool> {
     ref.invalidate(quizHistoryControllerProvider);
 
     ref.invalidate(topicAnalyticsControllerProvider);
+
+    ref.invalidate(mistakeBookControllerProvider);
+
+    ref.invalidate(mistakeBookTopicControllerProvider);
 
     /*
      * Public-looking screens yang masih

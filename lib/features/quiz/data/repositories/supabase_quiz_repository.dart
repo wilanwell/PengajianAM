@@ -6,6 +6,7 @@ import '../../domain/entities/quiz_mode.dart';
 import '../../domain/entities/quiz_result.dart';
 import '../../domain/entities/quiz_session.dart';
 import '../../domain/entities/quiz_session_question.dart';
+import '../../domain/entities/quiz_session_source.dart';
 import '../../domain/entities/quiz_session_validation.dart';
 import '../../domain/entities/quiz_submission.dart';
 import '../../domain/exceptions/quiz_failure.dart';
@@ -22,25 +23,62 @@ class SupabaseQuizRepository implements QuizRepository {
     required String topicId,
     required QuizMode mode,
     required int questionCount,
+  }) {
+    return _startSession(
+      rpcName: 'start_quiz_v2',
+      params: {
+        'p_topic_id': topicId,
+        'p_question_count': questionCount,
+        'p_mode': mode.name,
+      },
+      expectedTopicId: topicId,
+      expectedMode: mode,
+      expectedSource: QuizSessionSource.standard,
+      requestedQuestionCount: questionCount,
+      allowFewerQuestions: false,
+      fallbackMessage:
+          'Kuiz tidak dapat dimulakan. '
+          'Semak sambungan Internet anda.',
+    );
+  }
+
+  @override
+  Future<QuizSession> startMistakeReview({
+    required String topicId,
+    required int questionCount,
+  }) {
+    return _startSession(
+      rpcName: 'start_mistake_review',
+      params: {'p_topic_id': topicId, 'p_question_count': questionCount},
+      expectedTopicId: topicId,
+      expectedMode: QuizMode.practice,
+      expectedSource: QuizSessionSource.mistakeReview,
+      requestedQuestionCount: questionCount,
+      allowFewerQuestions: true,
+      fallbackMessage:
+          'Latihan semula tidak dapat dimulakan. '
+          'Semak sambungan Internet anda.',
+    );
+  }
+
+  Future<QuizSession> _startSession({
+    required String rpcName,
+    required Map<String, dynamic> params,
+    required String expectedTopicId,
+    required QuizMode expectedMode,
+    required QuizSessionSource expectedSource,
+    required int requestedQuestionCount,
+    required bool allowFewerQuestions,
+    required String fallbackMessage,
   }) async {
     try {
       final response = await _requestExecutor.run<Object?>(
         request: () {
-          return _client.rpc(
-            'start_quiz_v2',
-            params: {
-              'p_topic_id': topicId,
-              'p_question_count': questionCount,
-              'p_mode': mode.name,
-            },
-          );
+          return _client.rpc(rpcName, params: params);
         },
       );
 
-      final responseMap = _readResponseMap(
-        response,
-        operationName: 'start_quiz_v2',
-      );
+      final responseMap = _readResponseMap(response, operationName: rpcName);
 
       final rawQuestions = responseMap['questions'];
 
@@ -68,10 +106,25 @@ class SupabaseQuizRepository implements QuizRepository {
 
       final responseQuestionCount = _readInt(responseMap, 'questionCount');
 
-      if (questions.length != responseQuestionCount) {
+      if (responseQuestionCount < 1 ||
+          questions.length != responseQuestionCount) {
         throw const QuizFailure(
           'Jumlah soalan daripada server '
           'tidak lengkap.',
+        );
+      }
+
+      if (allowFewerQuestions) {
+        if (responseQuestionCount > requestedQuestionCount) {
+          throw const QuizFailure(
+            'Jumlah soalan latihan semula '
+            'melebihi jumlah yang diminta.',
+          );
+        }
+      } else if (responseQuestionCount != requestedQuestionCount) {
+        throw const QuizFailure(
+          'Jumlah soalan daripada server '
+          'tidak sepadan.',
         );
       }
 
@@ -88,7 +141,7 @@ class SupabaseQuizRepository implements QuizRepository {
 
       final responseTopicId = _readString(responseMap, 'topicId');
 
-      if (responseTopicId != topicId) {
+      if (responseTopicId != expectedTopicId) {
         throw const QuizFailure(
           'Topik kuiz daripada server '
           'tidak sepadan.',
@@ -97,9 +150,18 @@ class SupabaseQuizRepository implements QuizRepository {
 
       final responseMode = _readQuizMode(responseMap, 'mode');
 
-      if (responseMode != mode) {
+      if (responseMode != expectedMode) {
         throw const QuizFailure(
           'Mode kuiz daripada server '
+          'tidak sepadan.',
+        );
+      }
+
+      final responseSource = _readSessionSource(responseMap, 'sessionSource');
+
+      if (responseSource != expectedSource) {
+        throw const QuizFailure(
+          'Sumber sesi daripada server '
           'tidak sepadan.',
         );
       }
@@ -165,6 +227,7 @@ class SupabaseQuizRepository implements QuizRepository {
         sessionId: _readString(responseMap, 'sessionId'),
         topicId: responseTopicId,
         mode: responseMode,
+        source: responseSource,
         questionCount: responseQuestionCount,
         expiresAt: expiresAt,
         createdAt: createdAt,
@@ -185,10 +248,7 @@ class SupabaseQuizRepository implements QuizRepository {
     } on PostgrestException catch (error) {
       throw QuizFailure(_mapPostgrestMessage(error.message));
     } catch (_) {
-      throw const QuizFailure(
-        'Kuiz tidak dapat dimulakan. '
-        'Semak sambungan Internet anda.',
-      );
+      throw QuizFailure(fallbackMessage);
     }
   }
 
@@ -250,6 +310,7 @@ class SupabaseQuizRepository implements QuizRepository {
   @override
   Future<QuizSubmission> submitQuiz({
     required String sessionId,
+    required QuizSessionSource sessionSource,
     required Map<String, int> selectedAnswers,
     required Duration elapsedTime,
     required bool autoSubmitted,
@@ -266,6 +327,11 @@ class SupabaseQuizRepository implements QuizRepository {
           {'question_id': entry.key, 'selected_option_index': entry.value},
       ];
 
+      final rpcName = switch (sessionSource) {
+        QuizSessionSource.standard => 'submit_quiz_attempt_v2',
+        QuizSessionSource.mistakeReview => 'submit_mistake_review',
+      };
+
       /*
        * elapsedTime dan autoSubmitted masih
        * berada dalam repository interface
@@ -279,7 +345,7 @@ class SupabaseQuizRepository implements QuizRepository {
         timeout: const Duration(seconds: 30),
         request: () {
           return _client.rpc(
-            'submit_quiz_attempt_v2',
+            rpcName,
             params: {
               'p_session_id': normalizedSessionId,
               'p_answers': answerPayload,
@@ -288,12 +354,16 @@ class SupabaseQuizRepository implements QuizRepository {
         },
       );
 
-      final responseMap = _readResponseMap(
-        response,
-        operationName: 'submit_quiz_attempt_v2',
-      );
+      final responseMap = _readResponseMap(response, operationName: rpcName);
 
       final result = QuizResult.fromJson(responseMap);
+
+      if (result.sessionSource != sessionSource) {
+        throw const QuizFailure(
+          'Sumber keputusan daripada server '
+          'tidak sepadan.',
+        );
+      }
 
       final earnedXp = _readInt(responseMap, 'earnedXp');
 
@@ -301,6 +371,14 @@ class SupabaseQuizRepository implements QuizRepository {
         throw const QuizFailure(
           'Nilai XP keputusan kuiz '
           'tidak sepadan.',
+        );
+      }
+
+      if (result.sessionSource == QuizSessionSource.mistakeReview &&
+          earnedXp != 0) {
+        throw const QuizFailure(
+          'Latihan semula tidak boleh '
+          'memberikan XP.',
         );
       }
 
@@ -425,6 +503,30 @@ class SupabaseQuizRepository implements QuizRepository {
     );
   }
 
+  QuizSessionSource _readSessionSource(Map<String, dynamic> json, String key) {
+    final value = json[key];
+
+    if (value == null) {
+      return QuizSessionSource.standard;
+    }
+
+    if (value is! String || value.trim().isEmpty) {
+      throw QuizFailure(
+        'Data $key daripada server '
+        'tidak sah.',
+      );
+    }
+
+    try {
+      return quizSessionSourceFromServerValue(value);
+    } on FormatException {
+      throw const QuizFailure(
+        'Sumber sesi daripada server '
+        'tidak sah.',
+      );
+    }
+  }
+
   String _mapPostgrestMessage(String originalMessage) {
     final message = originalMessage.toLowerCase();
 
@@ -436,6 +538,11 @@ class SupabaseQuizRepository implements QuizRepository {
     if (message.contains('not enough unique questions')) {
       return 'Topik ini belum mempunyai '
           'soalan unik yang mencukupi.';
+    }
+
+    if (message.contains('no review questions are available')) {
+      return 'Tiada soalan yang perlu '
+          'dijawab semula untuk topik ini.';
     }
 
     if (message.contains('selected topic is not available')) {

@@ -9,6 +9,8 @@ import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../core/constants/app_disclaimer.dart';
 import '../../../../core/constants/support_information.dart';
+import '../../../mistake_book/presentation/controllers/mistake_book_controller.dart';
+import '../../../mistake_book/presentation/controllers/mistake_book_state.dart';
 import '../../../progress/domain/entities/user_progress.dart';
 import '../../../progress/presentation/controllers/user_progress_controller.dart';
 import '../../domain/entities/student_profile.dart';
@@ -16,6 +18,7 @@ import '../controllers/profile_controller.dart';
 import '../controllers/profile_state.dart';
 import '../widgets/achievement_tile.dart';
 import '../widgets/profile_header_card.dart';
+import '../widgets/profile_mistake_book_card.dart';
 import '../widgets/profile_progress_card.dart';
 import '../widgets/weekly_activity_card.dart';
 
@@ -35,9 +38,19 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   void initState() {
     super.initState();
 
-    Future<void>.microtask(() {
-      ref.read(profileControllerProvider.notifier).loadProfile();
+    Future<void>.microtask(() async {
+      await Future.wait([
+        ref.read(profileControllerProvider.notifier).loadProfile(),
+        ref.read(mistakeBookControllerProvider.notifier).loadMistakeBook(),
+      ]);
     });
+  }
+
+  Future<void> _refreshProfileContent() async {
+    await Future.wait([
+      ref.read(profileControllerProvider.notifier).refreshProfile(),
+      ref.read(mistakeBookControllerProvider.notifier).refreshMistakeBook(),
+    ]);
   }
 
   Future<void> _editDisplayName(StudentProfile profile) async {
@@ -366,6 +379,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
     final state = ref.watch(profileControllerProvider);
 
+    final mistakeBookState = ref.watch(mistakeBookControllerProvider);
+
     final controller = ref.read(profileControllerProvider.notifier);
 
     return Scaffold(
@@ -397,10 +412,19 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   )
                 : _ProfileContent(
                     profile: state.profile!,
+                    mistakeBookState: mistakeBookState,
                     isLoggingOut: _isLoggingOut,
-                    onRefresh: controller.refreshProfile,
+                    onRefresh: _refreshProfileContent,
                     onEditName: () {
                       _editDisplayName(state.profile!);
+                    },
+                    onOpenMistakeBook: () {
+                      context.pushNamed(RouteNames.mistakeBook);
+                    },
+                    onRetryMistakeBook: () {
+                      ref
+                          .read(mistakeBookControllerProvider.notifier)
+                          .refreshMistakeBook();
                     },
                     onShowAbout: _showAboutApplication,
                     onLogout: _logout,
@@ -414,35 +438,65 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 class _ProfileContent extends StatelessWidget {
   const _ProfileContent({
     required this.profile,
+    required this.mistakeBookState,
     required this.isLoggingOut,
     required this.onRefresh,
     required this.onEditName,
+    required this.onOpenMistakeBook,
+    required this.onRetryMistakeBook,
     required this.onShowAbout,
     required this.onLogout,
   });
 
   final StudentProfile profile;
+
+  final MistakeBookState mistakeBookState;
+
   final bool isLoggingOut;
 
   final Future<void> Function() onRefresh;
 
   final VoidCallback onEditName;
+
+  final VoidCallback onOpenMistakeBook;
+
+  final VoidCallback onRetryMistakeBook;
+
   final VoidCallback onShowAbout;
+
   final VoidCallback onLogout;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
 
+    final mistakeBookErrorMessage =
+        mistakeBookState.status == MistakeBookStatus.failure
+        ? mistakeBookState.errorMessage
+        : null;
+
+    final isMistakeBookLoading =
+        mistakeBookState.status == MistakeBookStatus.initial ||
+        mistakeBookState.status == MistakeBookStatus.loading;
+
     return RefreshIndicator(
       onRefresh: onRefresh,
       child: ListView(
+        key: const PageStorageKey<String>('profile-main-list'),
         physics: const AlwaysScrollableScrollPhysics(),
         padding: AppSpacing.screenPadding,
         children: [
           ProfileHeaderCard(profile: profile, onEditName: onEditName),
           const SizedBox(height: AppSpacing.lg),
           ProfileProgressCard(profile: profile),
+          const SizedBox(height: AppSpacing.lg),
+          ProfileMistakeBookCard(
+            snapshot: mistakeBookState.snapshot,
+            isLoading: isMistakeBookLoading,
+            errorMessage: mistakeBookErrorMessage,
+            onOpen: onOpenMistakeBook,
+            onRetry: onRetryMistakeBook,
+          ),
           const SizedBox(height: AppSpacing.lg),
           WeeklyActivityCard(values: profile.weeklyAnsweredQuestions),
           const SizedBox(height: AppSpacing.lg),
@@ -534,8 +588,11 @@ class _AboutInformationRow extends StatelessWidget {
   });
 
   final IconData icon;
+
   final String label;
+
   final String value;
+
   final bool selectableValue;
 
   @override
@@ -600,9 +657,13 @@ class _ProfileMenuTile extends StatelessWidget {
   });
 
   final IconData icon;
+
   final String title;
+
   final String subtitle;
+
   final VoidCallback onTap;
+
   final Color foregroundColor;
 
   @override
@@ -678,6 +739,7 @@ class _ProfileErrorView extends StatelessWidget {
   const _ProfileErrorView({required this.message, required this.onRetry});
 
   final String message;
+
   final VoidCallback onRetry;
 
   @override

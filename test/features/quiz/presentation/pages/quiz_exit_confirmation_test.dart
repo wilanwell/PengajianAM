@@ -5,6 +5,7 @@ import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_dr
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_mode.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_session.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_session_question.dart';
+import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_session_source.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_session_validation.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_submission.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/repositories/quiz_draft_repository.dart';
@@ -40,6 +41,17 @@ class _FakeQuizRepository implements QuizRepository {
   }
 
   @override
+  Future<QuizSession> startMistakeReview({
+    required String topicId,
+    required int questionCount,
+  }) {
+    throw UnimplementedError(
+      'Latihan semula tidak digunakan dalam '
+      'test keluar kuiz.',
+    );
+  }
+
+  @override
   Future<QuizSessionValidation> validateQuizSession({
     required String sessionId,
   }) async {
@@ -61,6 +73,7 @@ class _FakeQuizRepository implements QuizRepository {
   @override
   Future<QuizSubmission> submitQuiz({
     required String sessionId,
+    required QuizSessionSource sessionSource,
     required Map<String, int> selectedAnswers,
     required Duration elapsedTime,
     required bool autoSubmitted,

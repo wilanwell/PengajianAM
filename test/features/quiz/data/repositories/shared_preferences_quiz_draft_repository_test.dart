@@ -3,15 +3,20 @@ import 'package:pengajian_am_stpm_objektif/features/quiz/data/repositories/share
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_draft.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_mode.dart';
 import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_session_question.dart';
+import 'package:pengajian_am_stpm_objektif/features/quiz/domain/entities/quiz_session_source.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-QuizDraft _createDraft({QuizMode mode = QuizMode.exam}) {
+QuizDraft _createDraft({
+  QuizMode mode = QuizMode.exam,
+  QuizSessionSource source = QuizSessionSource.standard,
+}) {
   final startedAt = DateTime.utc(2026, 7, 17, 10);
 
   return QuizDraft(
     sessionId: '00000000-0000-0000-0000-000000000001',
     topicId: 'topic-s1-03',
     mode: mode,
+    source: source,
     questionCount: 2,
     questions: [
       QuizSessionQuestion(
@@ -95,6 +100,22 @@ void main() {
     expect(firstUserDraft, isNotNull);
 
     expect(secondUserDraft, isNull);
+  });
+
+  test('mengekalkan jenis sesi latihan semula', () async {
+    const repository = SharedPreferencesQuizDraftRepository();
+
+    await repository.saveDraft(
+      ownerUserId: 'user-1',
+      draft: _createDraft(
+        mode: QuizMode.practice,
+        source: QuizSessionSource.mistakeReview,
+      ),
+    );
+
+    final loadedDraft = await repository.loadDraft(ownerUserId: 'user-1');
+
+    expect(loadedDraft?.source, QuizSessionSource.mistakeReview);
   });
 
   test('memadam draft pengguna', () async {

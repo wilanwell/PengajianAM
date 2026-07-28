@@ -1,5 +1,6 @@
 import 'quiz_mode.dart';
 import 'quiz_session_question.dart';
+import 'quiz_session_source.dart';
 
 class QuizDraft {
   QuizDraft({
@@ -14,6 +15,7 @@ class QuizDraft {
     required this.startedAt,
     required this.sessionExpiresAt,
     required this.savedAt,
+    this.source = QuizSessionSource.standard,
     this.examDeadlineAt,
   }) {
     _validate();
@@ -24,6 +26,7 @@ class QuizDraft {
   final String sessionId;
   final String topicId;
   final QuizMode mode;
+  final QuizSessionSource source;
   final int questionCount;
   final List<QuizSessionQuestion> questions;
 
@@ -76,6 +79,7 @@ class QuizDraft {
       'sessionId': sessionId,
       'topicId': topicId,
       'mode': mode.name,
+      'sessionSource': source.serverValue,
       'questionCount': questionCount,
       'questions': [for (final question in questions) question.toJson()],
       'currentQuestionIndex': currentQuestionIndex,
@@ -139,6 +143,9 @@ class QuizDraft {
       sessionId: _readRequiredString(json, 'sessionId'),
       topicId: _readRequiredString(json, 'topicId'),
       mode: mode,
+      source: quizSessionSourceFromServerValue(
+        _readOptionalString(json, 'sessionSource'),
+      ),
       questionCount: _readInteger(json, 'questionCount', minimum: 1),
       questions: List<QuizSessionQuestion>.unmodifiable(questions),
       currentQuestionIndex: _readInteger(
@@ -194,6 +201,13 @@ class QuizDraft {
       );
     }
 
+    if (source == QuizSessionSource.mistakeReview &&
+        mode != QuizMode.practice) {
+      throw const FormatException(
+        'Mistake review draft must use Practice Mode.',
+      );
+    }
+
     final questionIds = questions.map((question) => question.id).toSet();
 
     if (questionIds.length != questions.length) {
@@ -235,6 +249,20 @@ String _readRequiredString(Map<String, dynamic> json, String key) {
 
   if (value is! String || value.trim().isEmpty) {
     throw FormatException('Invalid String value for $key.');
+  }
+
+  return value.trim();
+}
+
+String? _readOptionalString(Map<String, dynamic> json, String key) {
+  final value = json[key];
+
+  if (value == null) {
+    return null;
+  }
+
+  if (value is! String) {
+    throw FormatException('Invalid optional String value for $key.');
   }
 
   return value.trim();

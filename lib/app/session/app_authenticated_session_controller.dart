@@ -7,6 +7,8 @@ import '../../features/authentication/presentation/controllers/auth_session_stat
 import '../../features/home/presentation/controllers/home_controller.dart';
 import '../../features/leaderboard/presentation/controllers/leaderboard_controller.dart';
 import '../../features/leaderboard/presentation/controllers/leaderboard_preference_controller.dart';
+import '../../features/mistake_book/presentation/controllers/mistake_book_controller.dart';
+import '../../features/mistake_book/presentation/controllers/mistake_book_topic_controller.dart';
 import '../../features/profile/presentation/controllers/profile_controller.dart';
 import '../../features/progress/presentation/controllers/user_progress_controller.dart';
 import '../../features/quiz/presentation/controllers/quiz_history_controller.dart';
@@ -117,6 +119,10 @@ class AppAuthenticatedSessionController extends Notifier<bool> {
      * data khusus kepada pengguna semasa.
      */
     ref.invalidate(leaderboardPreferenceControllerProvider);
+
+    ref.invalidate(mistakeBookControllerProvider);
+
+    ref.invalidate(mistakeBookTopicControllerProvider);
 
     ref.invalidate(profileControllerProvider);
 

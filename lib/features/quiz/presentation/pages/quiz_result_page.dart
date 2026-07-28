@@ -7,12 +7,17 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../domain/entities/quiz_result.dart';
+import '../../domain/entities/quiz_session_source.dart';
 import '../controllers/quiz_session_controller.dart';
 
 class QuizResultPage extends ConsumerWidget {
   const QuizResultPage({required this.result, super.key});
 
   final QuizResult result;
+
+  bool get _isMistakeReview {
+    return result.sessionSource == QuizSessionSource.mistakeReview;
+  }
 
   String get _elapsedTimeLabel {
     final minutes = result.elapsedTime.inMinutes;
@@ -35,6 +40,15 @@ class QuizResultPage extends ConsumerWidget {
     context.pushNamed(RouteNames.quizReview, extra: result);
   }
 
+  void _returnToMistakeBookTopic(BuildContext context, WidgetRef ref) {
+    ref.read(quizSessionControllerProvider.notifier).reset();
+
+    context.goNamed(
+      RouteNames.mistakeBookTopic,
+      pathParameters: {'topicId': result.topicId},
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final textTheme = Theme.of(context).textTheme;
@@ -42,7 +56,11 @@ class QuizResultPage extends ConsumerWidget {
     final percentage = result.percentage.round();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Keputusan Kuiz')),
+      appBar: AppBar(
+        title: Text(
+          _isMistakeReview ? 'Keputusan Latihan Semula' : 'Keputusan Kuiz',
+        ),
+      ),
       body: SafeArea(
         child: ListView(
           padding: AppSpacing.screenPadding,
@@ -92,7 +110,11 @@ class QuizResultPage extends ConsumerWidget {
                   ),
                   const SizedBox(height: AppSpacing.lg),
                   Text(
-                    result.passed ? 'Bagus!' : 'Teruskan Berusaha',
+                    _isMistakeReview
+                        ? 'Latihan Selesai'
+                        : result.passed
+                        ? 'Bagus!'
+                        : 'Teruskan Berusaha',
                     style: textTheme.headlineSmall?.copyWith(
                       color: result.passed
                           ? AppColors.success
@@ -101,7 +123,9 @@ class QuizResultPage extends ConsumerWidget {
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   Text(
-                    result.autoSubmitted
+                    _isMistakeReview
+                        ? 'Status Buku Kesilapan anda telah dikemas kini.'
+                        : result.autoSubmitted
                         ? 'Masa tamat dan kuiz telah '
                               'dihantar secara automatik.'
                         : 'Kuiz anda telah berjaya '
@@ -115,7 +139,10 @@ class QuizResultPage extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: AppSpacing.md),
-            _EarnedXpCard(earnedXp: result.earnedXp),
+            if (_isMistakeReview)
+              const _MistakeReviewInfoCard()
+            else
+              _EarnedXpCard(earnedXp: result.earnedXp),
             const SizedBox(height: AppSpacing.lg),
             LayoutBuilder(
               builder: (context, constraints) {
@@ -182,13 +209,22 @@ class QuizResultPage extends ConsumerWidget {
               label: const Text('Semak Jawapan'),
             ),
             const SizedBox(height: AppSpacing.sm),
-            OutlinedButton.icon(
-              onPressed: () {
-                _retryQuiz(context, ref);
-              },
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Cuba Lagi'),
-            ),
+            if (_isMistakeReview)
+              OutlinedButton.icon(
+                onPressed: () {
+                  _returnToMistakeBookTopic(context, ref);
+                },
+                icon: const Icon(Icons.auto_stories_rounded),
+                label: const Text('Kembali ke Topik Buku Kesilapan'),
+              )
+            else
+              OutlinedButton.icon(
+                onPressed: () {
+                  _retryQuiz(context, ref);
+                },
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Cuba Lagi'),
+              ),
             const SizedBox(height: AppSpacing.sm),
             TextButton(
               onPressed: () {
@@ -199,6 +235,61 @@ class QuizResultPage extends ConsumerWidget {
             const SizedBox(height: AppSpacing.lg),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _MistakeReviewInfoCard extends StatelessWidget {
+  const _MistakeReviewInfoCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return Container(
+      width: double.infinity,
+      padding: AppSpacing.largeCardPadding,
+      decoration: BoxDecoration(
+        color: AppColors.infoBackground,
+        borderRadius: AppRadius.extraLarge,
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: const BoxDecoration(
+              color: AppColors.actionBlue,
+              borderRadius: AppRadius.large,
+            ),
+            child: const Icon(
+              Icons.school_rounded,
+              size: 30,
+              color: AppColors.textOnPrimary,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Fokus Penguasaan', style: textTheme.titleMedium),
+                const SizedBox(height: AppSpacing.xxs),
+                Text(
+                  'Latihan semula tidak menambah XP atau ranking. '
+                  'Jawapan betul ditandakan sebagai Dikuasai, manakala '
+                  'jawapan salah kekal Perlu Dijawab Semula.',
+                  style: textTheme.bodySmall?.copyWith(
+                    color: AppColors.secondaryText,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

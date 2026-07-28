@@ -6,16 +6,32 @@ class MistakeBookSnapshot {
     required this.needsReviewCount,
     required this.masteredCount,
     required this.topics,
-  }) : assert(needsReviewCount >= 0),
-       assert(masteredCount >= 0);
+    int? reviewableCount,
+  }) : reviewableCount = reviewableCount ?? needsReviewCount,
+       assert(needsReviewCount >= 0),
+       assert(masteredCount >= 0),
+       assert((reviewableCount ?? needsReviewCount) >= 0),
+       assert((reviewableCount ?? needsReviewCount) <= needsReviewCount);
 
   final DateTime generatedAt;
+
+  /// Jumlah semua soalan yang masih memerlukan semakan,
+  /// termasuk soalan yang telah diarkibkan.
   final int needsReviewCount;
+
+  /// Jumlah soalan yang masih aktif dan boleh dilatih.
+  final int reviewableCount;
+
   final int masteredCount;
+
   final List<MistakeBookTopicSummary> topics;
 
   int get totalTrackedCount {
     return needsReviewCount + masteredCount;
+  }
+
+  int get archivedNeedsReviewCount {
+    return needsReviewCount - reviewableCount;
   }
 
   bool get isEmpty {
@@ -23,6 +39,6 @@ class MistakeBookSnapshot {
   }
 
   bool get hasItemsToReview {
-    return needsReviewCount > 0;
+    return reviewableCount > 0;
   }
 }

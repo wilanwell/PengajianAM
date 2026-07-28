@@ -11,11 +11,11 @@ import '../../../topics/domain/entities/study_topic.dart';
 import '../../../topics/presentation/controllers/topics_controller.dart';
 import '../../domain/entities/quiz_draft.dart';
 import '../../domain/entities/quiz_mode.dart';
+import '../../domain/entities/quiz_session_source.dart';
 import '../../domain/exceptions/quiz_draft_failure.dart';
 import '../controllers/quiz_session_controller.dart';
+import '../widgets/existing_quiz_draft_dialog.dart';
 import '../widgets/quiz_instruction_item.dart';
-
-enum _ExistingDraftAction { cancel, resume, startNew }
 
 class QuizInstructionPage extends ConsumerStatefulWidget {
   const QuizInstructionPage({
@@ -62,7 +62,11 @@ class _QuizInstructionPageState extends ConsumerState<QuizInstructionPage> {
         _isProcessing = false;
       });
 
-      await _showDraftVerificationFailure(error.message);
+      await showQuizDraftVerificationFailure(
+        context: context,
+        message: error.message,
+        retryActionLabel: 'tekan Mula Kuiz sekali lagi',
+      );
 
       return;
     } catch (_) {
@@ -74,9 +78,12 @@ class _QuizInstructionPageState extends ConsumerState<QuizInstructionPage> {
         _isProcessing = false;
       });
 
-      await _showDraftVerificationFailure(
-        'Sesi tersimpan tidak dapat diperiksa. '
-        'Semak sambungan Internet dan cuba semula.',
+      await showQuizDraftVerificationFailure(
+        context: context,
+        message:
+            'Sesi tersimpan tidak dapat diperiksa. '
+            'Semak sambungan Internet dan cuba semula.',
+        retryActionLabel: 'tekan Mula Kuiz sekali lagi',
       );
 
       return;
@@ -105,7 +112,8 @@ class _QuizInstructionPageState extends ConsumerState<QuizInstructionPage> {
 
     final draftTopic = _findTopic(topics, draft.topicId);
 
-    final action = await _showExistingDraftDialog(
+    final action = await showExistingQuizDraftDialog(
+      context: context,
       draft: draft,
       draftTopicTitle: draftTopic?.title ?? 'Topik Kuiz Tersimpan',
     );
@@ -115,19 +123,20 @@ class _QuizInstructionPageState extends ConsumerState<QuizInstructionPage> {
     }
 
     switch (action) {
-      case _ExistingDraftAction.cancel:
+      case ExistingQuizDraftAction.cancel:
         return;
 
-      case _ExistingDraftAction.resume:
+      case ExistingQuizDraftAction.resume:
         _openQuizQuestion(
           topicId: draft.topicId,
           mode: draft.mode,
+          source: draft.source,
           questionCount: draft.questionCount,
           resumeDraft: true,
         );
         return;
 
-      case _ExistingDraftAction.startNew:
+      case ExistingQuizDraftAction.startNew:
         setState(() {
           _isProcessing = true;
         });
@@ -152,116 +161,10 @@ class _QuizInstructionPageState extends ConsumerState<QuizInstructionPage> {
     }
   }
 
-  Future<void> _showDraftVerificationFailure(String message) {
-    return showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          icon: const Icon(
-            Icons.cloud_off_rounded,
-            size: 44,
-            color: AppColors.warning,
-          ),
-          title: const Text('Sesi Tersimpan Tidak Dapat Disahkan'),
-          content: Text(
-            '$message\n\n'
-            'Draft tidak dipadamkan. '
-            'Sambungkan peranti kepada Internet '
-            'dan tekan Mula Kuiz sekali lagi.',
-          ),
-          actions: [
-            FilledButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-              },
-              child: const Text('Faham'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Future<_ExistingDraftAction?> _showExistingDraftDialog({
-    required QuizDraft draft,
-    required String draftTopicTitle,
-  }) {
-    final answeredCount = draft.selectedAnswers.length;
-
-    final currentNumber = draft.currentQuestionIndex + 1;
-
-    return showDialog<_ExistingDraftAction>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) {
-        return AlertDialog(
-          icon: const Icon(
-            Icons.history_rounded,
-            size: 44,
-            color: AppColors.primary,
-          ),
-          title: const Text('Kuiz Belum Selesai'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Terdapat sesi kuiz yang telah '
-                'disimpan pada peranti ini.',
-              ),
-              const SizedBox(height: AppSpacing.md),
-              _DraftInformationRow(label: 'Topik', value: draftTopicTitle),
-              const SizedBox(height: AppSpacing.xs),
-              _DraftInformationRow(label: 'Mode', value: draft.mode.label),
-              const SizedBox(height: AppSpacing.xs),
-              _DraftInformationRow(
-                label: 'Kemajuan',
-                value:
-                    '$answeredCount daripada '
-                    '${draft.questionCount} dijawab',
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              _DraftInformationRow(
-                label: 'Kedudukan',
-                value: 'Soalan $currentNumber',
-              ),
-              const SizedBox(height: AppSpacing.md),
-              const Text(
-                'Mula Baharu akan memadamkan '
-                'jawapan daripada sesi tersimpan.',
-                style: TextStyle(color: AppColors.secondaryText),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop(_ExistingDraftAction.cancel);
-              },
-              child: const Text('Batal'),
-            ),
-            OutlinedButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop(_ExistingDraftAction.startNew);
-              },
-              child: const Text('Mula Baharu'),
-            ),
-            FilledButton.icon(
-              onPressed: () {
-                Navigator.of(dialogContext).pop(_ExistingDraftAction.resume);
-              },
-              icon: const Icon(Icons.play_arrow_rounded),
-              label: const Text('Sambung Kuiz'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   void _openQuizQuestion({
     required String topicId,
     required QuizMode mode,
+    QuizSessionSource source = QuizSessionSource.standard,
     required int questionCount,
     required bool resumeDraft,
   }) {
@@ -270,6 +173,7 @@ class _QuizInstructionPageState extends ConsumerState<QuizInstructionPage> {
       queryParameters: {
         'topicId': topicId,
         'mode': mode.routeValue,
+        'source': source.serverValue,
         'questionCount': questionCount.toString(),
         'resumeDraft': resumeDraft.toString(),
       },
@@ -461,15 +365,8 @@ class _QuizInstructionContent extends StatelessWidget {
               ),
             ),
             const SizedBox(height: AppSpacing.lg),
-
-            /*
-             * Disclaimer diletakkan pada halaman
-             * Arahan Kuiz, bukan di dalam actions
-             * dialog draft.
-             */
             const AppDisclaimerCard(),
             const SizedBox(height: AppSpacing.lg),
-
             FilledButton.icon(
               onPressed: isProcessing ? null : onStart,
               icon: isProcessing
@@ -488,39 +385,6 @@ class _QuizInstructionContent extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _DraftInformationRow extends StatelessWidget {
-  const _DraftInformationRow({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 82,
-          child: Text(
-            label,
-            style: textTheme.bodyMedium?.copyWith(
-              color: AppColors.secondaryText,
-            ),
-          ),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
-          ),
-        ),
-      ],
     );
   }
 }

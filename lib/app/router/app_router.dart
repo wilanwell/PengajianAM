@@ -4,19 +4,24 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/analytics/presentation/pages/topic_analytics_page.dart';
+import '../../features/authentication/presentation/pages/delete_account_page.dart';
 import '../../features/authentication/presentation/pages/forgot_password_page.dart';
 import '../../features/authentication/presentation/pages/login_page.dart';
 import '../../features/authentication/presentation/pages/register_page.dart';
+import '../../features/authentication/presentation/pages/reset_password_page.dart';
 import '../../features/authentication/presentation/pages/splash_page.dart';
 import '../../features/home/presentation/pages/home_page.dart';
 import '../../features/leaderboard/presentation/pages/leaderboard_page.dart';
 import '../../features/legal/presentation/pages/privacy_policy_page.dart';
 import '../../features/legal/presentation/pages/terms_of_use_page.dart';
 import '../../features/mistake_book/presentation/pages/mistake_book_page.dart';
+import '../../features/mistake_book/presentation/pages/mistake_book_topic_page.dart';
+import '../../features/mistake_book/presentation/pages/mistake_review_launch_page.dart';
 import '../../features/navigation/presentation/pages/main_navigation_page.dart';
 import '../../features/profile/presentation/pages/profile_page.dart';
 import '../../features/quiz/domain/entities/quiz_mode.dart';
 import '../../features/quiz/domain/entities/quiz_result.dart';
+import '../../features/quiz/domain/entities/quiz_session_source.dart';
 import '../../features/quiz/presentation/pages/quiz_history_page.dart';
 import '../../features/quiz/presentation/pages/quiz_hub_page.dart';
 import '../../features/quiz/presentation/pages/quiz_instruction_page.dart';
@@ -25,8 +30,6 @@ import '../../features/quiz/presentation/pages/quiz_result_page.dart';
 import '../../features/quiz/presentation/pages/quiz_review_page.dart';
 import '../../features/settings/presentation/pages/settings_page.dart';
 import '../../features/topics/presentation/pages/topics_page.dart';
-import '../../features/authentication/presentation/pages/reset_password_page.dart';
-import '../../features/authentication/presentation/pages/delete_account_page.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import 'route_names.dart';
@@ -124,6 +127,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
           final mode = quizModeFromRouteValue(parameters['mode']);
 
+          final source =
+              parameters['source'] ==
+                  QuizSessionSource.mistakeReview.serverValue
+              ? QuizSessionSource.mistakeReview
+              : QuizSessionSource.standard;
+
           final questionCount =
               int.tryParse(parameters['questionCount'] ?? '') ?? 10;
 
@@ -132,6 +141,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           return QuizQuestionPage(
             topicId: topicId,
             mode: mode,
+            source: source,
             questionCount: questionCount,
             resumeDraft: resumeDraft,
           );
@@ -193,6 +203,29 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: RouteNames.mistakeBook,
         builder: (context, state) {
           return const MistakeBookPage();
+        },
+      ),
+      GoRoute(
+        path: RoutePaths.mistakeBookTopic,
+        name: RouteNames.mistakeBookTopic,
+        builder: (context, state) {
+          return MistakeBookTopicPage(
+            topicId: state.pathParameters['topicId'] ?? '',
+          );
+        },
+      ),
+      GoRoute(
+        path: RoutePaths.mistakeReviewSession,
+        name: RouteNames.mistakeReviewSession,
+        builder: (context, state) {
+          final requestedQuestionCount =
+              int.tryParse(state.uri.queryParameters['questionCount'] ?? '') ??
+              1;
+
+          return MistakeReviewLaunchPage(
+            topicId: state.pathParameters['topicId'] ?? '',
+            requestedQuestionCount: requestedQuestionCount,
+          );
         },
       ),
       StatefulShellRoute.indexedStack(

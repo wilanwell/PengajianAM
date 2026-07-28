@@ -1,5 +1,8 @@
-class MistakeBookTopicSummary {
-  const MistakeBookTopicSummary({
+import 'mistake_book_question_item.dart';
+
+class MistakeBookTopicDetail {
+  const MistakeBookTopicDetail({
+    required this.generatedAt,
     required this.topicId,
     required this.topicCode,
     required this.topicTitle,
@@ -7,7 +10,7 @@ class MistakeBookTopicSummary {
     required this.sortOrder,
     required this.needsReviewCount,
     required this.masteredCount,
-    required this.lastMistakeAt,
+    required this.items,
     int? reviewableCount,
   }) : reviewableCount = reviewableCount ?? needsReviewCount,
        assert(semester >= 1 && semester <= 3),
@@ -16,7 +19,9 @@ class MistakeBookTopicSummary {
        assert(masteredCount >= 0),
        assert((reviewableCount ?? needsReviewCount) >= 0),
        assert((reviewableCount ?? needsReviewCount) <= needsReviewCount),
-       assert(needsReviewCount + masteredCount > 0);
+       assert(items.length == needsReviewCount + masteredCount);
+
+  final DateTime generatedAt;
 
   final String topicId;
 
@@ -28,29 +33,30 @@ class MistakeBookTopicSummary {
 
   final int sortOrder;
 
-  /// Jumlah keseluruhan soalan yang masih berstatus
-  /// perlu dijawab semula, termasuk soalan diarkibkan.
+  /// Jumlah semua soalan berstatus perlu dijawab semula,
+  /// termasuk soalan yang telah diarkibkan.
   final int needsReviewCount;
 
-  /// Jumlah soalan yang masih aktif dan boleh dimasukkan
-  /// ke dalam latihan semula.
+  /// Jumlah soalan aktif yang boleh dilatih semula.
   final int reviewableCount;
 
   final int masteredCount;
 
-  final DateTime lastMistakeAt;
+  final List<MistakeBookQuestionItem> items;
 
   int get totalTrackedCount {
     return needsReviewCount + masteredCount;
   }
 
-  /// Jumlah soalan yang masih perlu dijawab semula tetapi
-  /// tidak lagi aktif dalam question bank.
   int get archivedNeedsReviewCount {
     return needsReviewCount - reviewableCount;
   }
 
-  bool get hasItemsToReview {
+  bool get isEmpty {
+    return items.isEmpty;
+  }
+
+  bool get hasReviewableItems {
     return reviewableCount > 0;
   }
 

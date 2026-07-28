@@ -1,5 +1,6 @@
 import 'quiz_mode.dart';
 import 'quiz_question.dart';
+import 'quiz_session_source.dart';
 
 class QuizResult {
   const QuizResult({
@@ -11,6 +12,7 @@ class QuizResult {
     required this.answeredQuestions,
     required this.elapsedTime,
     required this.autoSubmitted,
+    this.sessionSource = QuizSessionSource.standard,
     this.topicCode = '',
     this.topicTitle = 'Topik Pengajian AM',
     this.earnedXp = 0,
@@ -21,6 +23,7 @@ class QuizResult {
   final String topicTitle;
 
   final QuizMode mode;
+  final QuizSessionSource sessionSource;
   final List<QuizQuestion> questions;
   final Map<String, int> selectedAnswers;
 
@@ -63,6 +66,7 @@ class QuizResult {
       'topicCode': topicCode,
       'topicTitle': topicTitle,
       'mode': mode.name,
+      'sessionSource': sessionSource.serverValue,
       'questions': [for (final question in questions) question.toJson()],
       'selectedAnswers': selectedAnswers,
       'correctAnswers': correctAnswers,
@@ -122,6 +126,9 @@ class QuizResult {
         fallback: 'Topik Pengajian AM',
       ),
       mode: quizModeFromRouteValue(modeValue),
+      sessionSource: quizSessionSourceFromServerValue(
+        _readOptionalString(json, 'sessionSource'),
+      ),
       questions: List<QuizQuestion>.unmodifiable(questions),
       selectedAnswers: Map<String, int>.unmodifiable(selectedAnswers),
       correctAnswers: _readInt(json, 'correctAnswers'),

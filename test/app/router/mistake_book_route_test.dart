@@ -15,9 +15,31 @@ void main() {
 
       expect(RouteNames.mistakeBook, 'mistake-book');
       expect(RoutePaths.mistakeBook, '/mistake-book');
+      expect(RouteNames.mistakeBookTopic, 'mistake-book-topic');
+      expect(RoutePaths.mistakeBookTopic, '/mistake-book/:topicId');
+      expect(RouteNames.mistakeReviewSession, 'mistake-review-session');
+      expect(
+        RoutePaths.mistakeReviewSession,
+        '/mistake-book/:topicId/review-session',
+      );
       expect(
         router.namedLocation(RouteNames.mistakeBook),
         RoutePaths.mistakeBook,
+      );
+      expect(
+        router.namedLocation(
+          RouteNames.mistakeBookTopic,
+          pathParameters: {'topicId': 'topic-s1-01'},
+        ),
+        '/mistake-book/topic-s1-01',
+      );
+      expect(
+        router.namedLocation(
+          RouteNames.mistakeReviewSession,
+          pathParameters: {'topicId': 'topic-s1-01'},
+          queryParameters: {'questionCount': '15'},
+        ),
+        '/mistake-book/topic-s1-01/review-session?questionCount=15',
       );
     },
   );
