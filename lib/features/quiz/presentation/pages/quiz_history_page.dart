@@ -26,7 +26,7 @@ class _QuizHistoryPageState extends ConsumerState<QuizHistoryPage> {
     super.initState();
 
     Future<void>.microtask(() {
-      ref.read(quizHistoryControllerProvider.notifier).loadHistory();
+      return ref.read(quizHistoryControllerProvider.notifier).loadHistory();
     });
   }
 
@@ -157,9 +157,9 @@ class _QuizHistoryPageState extends ConsumerState<QuizHistoryPage> {
       appBar: AppBar(
         title: const Text('Sejarah Kuiz'),
         actions: [
-          if (state.status == QuizHistoryStatus.success &&
-              state.attempts.isNotEmpty)
+          if (state.attempts.isNotEmpty)
             IconButton(
+              key: const Key('quiz-history-clear-button'),
               tooltip: 'Padam semua sejarah',
               onPressed: _clearHistory,
               icon: const Icon(Icons.delete_sweep_outlined),
@@ -167,27 +167,67 @@ class _QuizHistoryPageState extends ConsumerState<QuizHistoryPage> {
         ],
       ),
       body: SafeArea(
-        child: switch (state.status) {
-          QuizHistoryStatus.initial || QuizHistoryStatus.loading =>
-            const Center(child: CircularProgressIndicator()),
-
-          QuizHistoryStatus.failure => _QuizHistoryErrorView(
-            message:
-                state.errorMessage ?? 'Sejarah kuiz tidak dapat dimuatkan.',
-            onRetry: () {
-              controller.loadHistory(forceRefresh: true);
-            },
-          ),
-
-          QuizHistoryStatus.success => _QuizHistoryContent(
-            state: state,
-            onRefresh: controller.refreshHistory,
-            onOpenAttempt: _openAttempt,
-            onDeleteAttempt: _deleteAttempt,
-          ),
-        },
+        child: _buildStateContent(
+          state: state,
+          onRefresh: controller.refreshHistory,
+          onRetry: () {
+            controller.loadHistory(forceRefresh: true);
+          },
+        ),
       ),
     );
+  }
+
+  Widget _buildStateContent({
+    required QuizHistoryState state,
+    required Future<void> Function() onRefresh,
+    required VoidCallback onRetry,
+  }) {
+    switch (state.status) {
+      case QuizHistoryStatus.initial:
+        return const _QuizHistoryLoadingView();
+
+      case QuizHistoryStatus.loading:
+        if (state.attempts.isEmpty) {
+          return const _QuizHistoryLoadingView();
+        }
+
+        return _QuizHistoryContent(
+          state: state,
+          onRefresh: onRefresh,
+          onOpenAttempt: _openAttempt,
+          onDeleteAttempt: _deleteAttempt,
+          isRefreshing: true,
+        );
+
+      case QuizHistoryStatus.failure:
+        if (state.attempts.isEmpty) {
+          return _QuizHistoryErrorView(
+            message:
+                state.errorMessage ?? 'Sejarah kuiz tidak dapat dimuatkan.',
+            onRetry: onRetry,
+          );
+        }
+
+        return _QuizHistoryContent(
+          state: state,
+          onRefresh: onRefresh,
+          onOpenAttempt: _openAttempt,
+          onDeleteAttempt: _deleteAttempt,
+          staleErrorMessage:
+              state.errorMessage ??
+              'Data baharu tidak dapat dimuatkan. '
+                  'Sejarah terakhir masih dipaparkan.',
+        );
+
+      case QuizHistoryStatus.success:
+        return _QuizHistoryContent(
+          state: state,
+          onRefresh: onRefresh,
+          onOpenAttempt: _openAttempt,
+          onDeleteAttempt: _deleteAttempt,
+        );
+    }
   }
 }
 
@@ -197,12 +237,21 @@ class _QuizHistoryContent extends StatelessWidget {
     required this.onRefresh,
     required this.onOpenAttempt,
     required this.onDeleteAttempt,
+    this.isRefreshing = false,
+    this.staleErrorMessage,
   });
 
   final QuizHistoryState state;
+
   final Future<void> Function() onRefresh;
+
   final ValueChanged<QuizAttempt> onOpenAttempt;
+
   final ValueChanged<QuizAttempt> onDeleteAttempt;
+
+  final bool isRefreshing;
+
+  final String? staleErrorMessage;
 
   @override
   Widget build(BuildContext context) {
@@ -211,9 +260,21 @@ class _QuizHistoryContent extends StatelessWidget {
     return RefreshIndicator(
       onRefresh: onRefresh,
       child: ListView(
+        key: const PageStorageKey<String>('quiz-history-main-list'),
         physics: const AlwaysScrollableScrollPhysics(),
         padding: AppSpacing.screenPadding,
         children: [
+          if (isRefreshing) ...[
+            const LinearProgressIndicator(
+              key: Key('quiz-history-refresh-progress'),
+              minHeight: 3,
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+          if (staleErrorMessage != null) ...[
+            _QuizHistoryStaleDataWarning(message: staleErrorMessage!),
+            const SizedBox(height: AppSpacing.md),
+          ],
           _HistorySummaryCard(state: state),
           const SizedBox(height: AppSpacing.lg),
           Row(
@@ -223,6 +284,7 @@ class _QuizHistoryContent extends StatelessWidget {
               ),
               Text(
                 '${state.totalAttempts} rekod',
+                key: const Key('quiz-history-record-count'),
                 style: textTheme.bodyMedium?.copyWith(
                   color: AppColors.secondaryText,
                 ),
@@ -235,6 +297,10 @@ class _QuizHistoryContent extends StatelessWidget {
           else
             for (final attempt in state.attempts) ...[
               QuizHistoryTile(
+                key: Key(
+                  'quiz-history-attempt-'
+                  '${attempt.id}',
+                ),
                 attempt: attempt,
                 onTap: () {
                   onOpenAttempt(attempt);
@@ -245,6 +311,18 @@ class _QuizHistoryContent extends StatelessWidget {
               ),
               const SizedBox(height: AppSpacing.sm),
             ],
+          if (state.lastUpdated != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              'Dikemas kini '
+              '${_formatDateTime(state.lastUpdated!)}',
+              key: const Key('quiz-history-last-updated'),
+              textAlign: TextAlign.center,
+              style: textTheme.bodySmall?.copyWith(
+                color: AppColors.secondaryText,
+              ),
+            ),
+          ],
           const SizedBox(height: AppSpacing.lg),
         ],
       ),
@@ -260,6 +338,7 @@ class _HistorySummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      key: const Key('quiz-history-summary'),
       padding: AppSpacing.largeCardPadding,
       decoration: const BoxDecoration(
         color: AppColors.softBlue,
@@ -269,6 +348,7 @@ class _HistorySummaryCard extends StatelessWidget {
         children: [
           Expanded(
             child: _SummaryMetric(
+              key: const Key('quiz-history-summary-attempts'),
               icon: Icons.history_rounded,
               value: '${state.totalAttempts}',
               label: 'Percubaan',
@@ -276,6 +356,7 @@ class _HistorySummaryCard extends StatelessWidget {
           ),
           Expanded(
             child: _SummaryMetric(
+              key: const Key('quiz-history-summary-average'),
               icon: Icons.track_changes_rounded,
               value: '${state.averageScore.round()}%',
               label: 'Purata',
@@ -283,6 +364,7 @@ class _HistorySummaryCard extends StatelessWidget {
           ),
           Expanded(
             child: _SummaryMetric(
+              key: const Key('quiz-history-summary-xp'),
               icon: Icons.star_rounded,
               value: '${state.totalEarnedXp}',
               label: 'XP Diperoleh',
@@ -299,10 +381,13 @@ class _SummaryMetric extends StatelessWidget {
     required this.icon,
     required this.value,
     required this.label,
+    super.key,
   });
 
   final IconData icon;
+
   final String value;
+
   final String label;
 
   @override
@@ -327,6 +412,52 @@ class _SummaryMetric extends StatelessWidget {
   }
 }
 
+class _QuizHistoryStaleDataWarning extends StatelessWidget {
+  const _QuizHistoryStaleDataWarning({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const Key('quiz-history-stale-warning'),
+      width: double.infinity,
+      padding: AppSpacing.cardPadding,
+      decoration: const BoxDecoration(
+        color: AppColors.warningBackground,
+        borderRadius: AppRadius.large,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.cloud_off_rounded, color: AppColors.warning),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Data Terakhir Dipaparkan',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(color: AppColors.warning),
+                ),
+                const SizedBox(height: AppSpacing.xxs),
+                Text(
+                  message,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: AppColors.primaryText),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _QuizHistoryEmptyView extends StatelessWidget {
   const _QuizHistoryEmptyView();
 
@@ -335,6 +466,7 @@ class _QuizHistoryEmptyView extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
 
     return Container(
+      key: const Key('quiz-history-empty'),
       padding: AppSpacing.largeCardPadding,
       decoration: BoxDecoration(
         color: AppColors.surface,
@@ -365,16 +497,26 @@ class _QuizHistoryEmptyView extends StatelessWidget {
   }
 }
 
+class _QuizHistoryLoadingView extends StatelessWidget {
+  const _QuizHistoryLoadingView();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(child: CircularProgressIndicator());
+  }
+}
+
 class _QuizHistoryErrorView extends StatelessWidget {
   const _QuizHistoryErrorView({required this.message, required this.onRetry});
 
   final String message;
+
   final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: AppSpacing.screenPadding,
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -397,4 +539,19 @@ class _QuizHistoryErrorView extends StatelessWidget {
       ),
     );
   }
+}
+
+String _formatDateTime(DateTime value) {
+  final localValue = value.toLocal();
+
+  final day = localValue.day.toString().padLeft(2, '0');
+
+  final month = localValue.month.toString().padLeft(2, '0');
+
+  final hour = localValue.hour.toString().padLeft(2, '0');
+
+  final minute = localValue.minute.toString().padLeft(2, '0');
+
+  return '$day/$month/${localValue.year} '
+      'pada $hour:$minute';
 }

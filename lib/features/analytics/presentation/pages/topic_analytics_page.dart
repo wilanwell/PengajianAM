@@ -24,7 +24,7 @@ class _TopicAnalyticsPageState extends ConsumerState<TopicAnalyticsPage> {
     super.initState();
 
     Future<void>.microtask(() {
-      ref
+      return ref
           .read(topicAnalyticsControllerProvider.notifier)
           .loadAnalytics(forceRefresh: true);
     });
@@ -39,32 +39,75 @@ class _TopicAnalyticsPageState extends ConsumerState<TopicAnalyticsPage> {
     return Scaffold(
       appBar: AppBar(title: const Text('Analitik Prestasi')),
       body: SafeArea(
-        child: switch (state.status) {
-          TopicAnalyticsStatus.initial || TopicAnalyticsStatus.loading =>
-            const Center(child: CircularProgressIndicator()),
-
-          TopicAnalyticsStatus.failure => _AnalyticsErrorView(
-            message: state.errorMessage ?? 'Analitik tidak dapat dimuatkan.',
-            onRetry: () {
-              controller.loadAnalytics(forceRefresh: true);
-            },
-          ),
-
-          TopicAnalyticsStatus.success => _AnalyticsContent(
-            state: state,
-            onRefresh: controller.refreshAnalytics,
-          ),
-        },
+        child: _buildStateContent(
+          state: state,
+          onRefresh: controller.refreshAnalytics,
+          onRetry: () {
+            controller.loadAnalytics(forceRefresh: true);
+          },
+        ),
       ),
     );
+  }
+
+  Widget _buildStateContent({
+    required TopicAnalyticsState state,
+    required Future<void> Function() onRefresh,
+    required VoidCallback onRetry,
+  }) {
+    switch (state.status) {
+      case TopicAnalyticsStatus.initial:
+        return const _AnalyticsLoadingView();
+
+      case TopicAnalyticsStatus.loading:
+        if (state.performances.isEmpty) {
+          return const _AnalyticsLoadingView();
+        }
+
+        return _AnalyticsContent(
+          state: state,
+          onRefresh: onRefresh,
+          isRefreshing: true,
+        );
+
+      case TopicAnalyticsStatus.failure:
+        if (state.performances.isEmpty) {
+          return _AnalyticsErrorView(
+            message: state.errorMessage ?? 'Analitik tidak dapat dimuatkan.',
+            onRetry: onRetry,
+          );
+        }
+
+        return _AnalyticsContent(
+          state: state,
+          onRefresh: onRefresh,
+          staleErrorMessage:
+              state.errorMessage ??
+              'Data baharu tidak dapat dimuatkan. '
+                  'Data terakhir masih dipaparkan.',
+        );
+
+      case TopicAnalyticsStatus.success:
+        return _AnalyticsContent(state: state, onRefresh: onRefresh);
+    }
   }
 }
 
 class _AnalyticsContent extends StatelessWidget {
-  const _AnalyticsContent({required this.state, required this.onRefresh});
+  const _AnalyticsContent({
+    required this.state,
+    required this.onRefresh,
+    this.isRefreshing = false,
+    this.staleErrorMessage,
+  });
 
   final TopicAnalyticsState state;
+
   final Future<void> Function() onRefresh;
+
+  final bool isRefreshing;
+
+  final String? staleErrorMessage;
 
   @override
   Widget build(BuildContext context) {
@@ -73,9 +116,21 @@ class _AnalyticsContent extends StatelessWidget {
     return RefreshIndicator(
       onRefresh: onRefresh,
       child: ListView(
+        key: const PageStorageKey<String>('topic-analytics-main-list'),
         physics: const AlwaysScrollableScrollPhysics(),
         padding: AppSpacing.screenPadding,
         children: [
+          if (isRefreshing) ...[
+            const LinearProgressIndicator(
+              key: Key('topic-analytics-refresh-progress'),
+              minHeight: 3,
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+          if (staleErrorMessage != null) ...[
+            _AnalyticsStaleDataWarning(message: staleErrorMessage!),
+            const SizedBox(height: AppSpacing.md),
+          ],
           _AnalyticsSummaryCard(state: state),
           const SizedBox(height: AppSpacing.lg),
           if (state.performances.isEmpty)
@@ -99,6 +154,7 @@ class _AnalyticsContent extends StatelessWidget {
                 ),
                 Text(
                   '${state.totalTopics} topik',
+                  key: const Key('topic-analytics-topic-count'),
                   style: textTheme.bodyMedium?.copyWith(
                     color: AppColors.secondaryText,
                   ),
@@ -107,9 +163,27 @@ class _AnalyticsContent extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.sm),
             for (final performance in state.performances) ...[
-              TopicPerformanceCard(performance: performance),
+              TopicPerformanceCard(
+                key: Key(
+                  'topic-analytics-performance-'
+                  '${performance.topicId}',
+                ),
+                performance: performance,
+              ),
               const SizedBox(height: AppSpacing.sm),
             ],
+          ],
+          if (state.lastUpdated != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              'Dikemas kini '
+              '${_formatDateTime(state.lastUpdated!)}',
+              key: const Key('topic-analytics-last-updated'),
+              textAlign: TextAlign.center,
+              style: textTheme.bodySmall?.copyWith(
+                color: AppColors.secondaryText,
+              ),
+            ),
           ],
           const SizedBox(height: AppSpacing.lg),
         ],
@@ -128,6 +202,7 @@ class _AnalyticsSummaryCard extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
 
     return Container(
+      key: const Key('topic-analytics-summary'),
       padding: AppSpacing.largeCardPadding,
       decoration: const BoxDecoration(
         color: AppColors.primary,
@@ -143,7 +218,8 @@ class _AnalyticsSummaryCard extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            'Berdasarkan rekod kuiz dalam akaun Supabase anda.',
+            'Berdasarkan rekod kuiz dalam '
+            'akaun Supabase anda.',
             textAlign: TextAlign.center,
             style: textTheme.bodyMedium?.copyWith(color: Colors.white70),
           ),
@@ -152,18 +228,21 @@ class _AnalyticsSummaryCard extends StatelessWidget {
             children: [
               Expanded(
                 child: _SummaryMetric(
+                  key: const Key('topic-analytics-summary-topics'),
                   value: '${state.totalTopics}',
                   label: 'Topik',
                 ),
               ),
               Expanded(
                 child: _SummaryMetric(
+                  key: const Key('topic-analytics-summary-attempts'),
                   value: '${state.totalAttempts}',
                   label: 'Percubaan',
                 ),
               ),
               Expanded(
                 child: _SummaryMetric(
+                  key: const Key('topic-analytics-summary-average'),
                   value: '${state.overallAverageScore.round()}%',
                   label: 'Purata',
                 ),
@@ -177,9 +256,10 @@ class _AnalyticsSummaryCard extends StatelessWidget {
 }
 
 class _SummaryMetric extends StatelessWidget {
-  const _SummaryMetric({required this.value, required this.label});
+  const _SummaryMetric({required this.value, required this.label, super.key});
 
   final String value;
+
   final String label;
 
   @override
@@ -211,7 +291,9 @@ class _AnalyticsHighlights extends StatelessWidget {
   });
 
   final TopicPerformance strongestTopic;
+
   final TopicPerformance weakestTopic;
+
   final bool showWeakest;
 
   @override
@@ -231,6 +313,7 @@ class _AnalyticsHighlights extends StatelessWidget {
             SizedBox(
               width: cardWidth,
               child: _HighlightCard(
+                key: const Key('topic-analytics-strongest'),
                 title: 'Topik Terkuat',
                 performance: strongestTopic,
                 icon: Icons.workspace_premium_rounded,
@@ -242,6 +325,7 @@ class _AnalyticsHighlights extends StatelessWidget {
               SizedBox(
                 width: cardWidth,
                 child: _HighlightCard(
+                  key: const Key('topic-analytics-weakest'),
                   title: 'Perlu Diberi Perhatian',
                   performance: weakestTopic,
                   icon: Icons.priority_high_rounded,
@@ -263,12 +347,17 @@ class _HighlightCard extends StatelessWidget {
     required this.icon,
     required this.foregroundColor,
     required this.backgroundColor,
+    super.key,
   });
 
   final String title;
+
   final TopicPerformance performance;
+
   final IconData icon;
+
   final Color foregroundColor;
+
   final Color backgroundColor;
 
   @override
@@ -316,6 +405,52 @@ class _HighlightCard extends StatelessWidget {
   }
 }
 
+class _AnalyticsStaleDataWarning extends StatelessWidget {
+  const _AnalyticsStaleDataWarning({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const Key('topic-analytics-stale-warning'),
+      width: double.infinity,
+      padding: AppSpacing.cardPadding,
+      decoration: const BoxDecoration(
+        color: AppColors.warningBackground,
+        borderRadius: AppRadius.large,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.cloud_off_rounded, color: AppColors.warning),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Data Terakhir Dipaparkan',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(color: AppColors.warning),
+                ),
+                const SizedBox(height: AppSpacing.xxs),
+                Text(
+                  message,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: AppColors.primaryText),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _AnalyticsEmptyView extends StatelessWidget {
   const _AnalyticsEmptyView();
 
@@ -324,6 +459,7 @@ class _AnalyticsEmptyView extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
 
     return Container(
+      key: const Key('topic-analytics-empty'),
       padding: AppSpacing.largeCardPadding,
       decoration: BoxDecoration(
         color: AppColors.surface,
@@ -341,8 +477,9 @@ class _AnalyticsEmptyView extends StatelessWidget {
           Text('Belum Ada Data Analitik', style: textTheme.titleMedium),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            'Jawab dan hantar sekurang-kurangnya satu kuiz '
-            'untuk melihat prestasi mengikut topik.',
+            'Jawab dan hantar sekurang-kurangnya '
+            'satu kuiz untuk melihat prestasi '
+            'mengikut topik.',
             textAlign: TextAlign.center,
             style: textTheme.bodyMedium?.copyWith(
               color: AppColors.secondaryText,
@@ -354,16 +491,26 @@ class _AnalyticsEmptyView extends StatelessWidget {
   }
 }
 
+class _AnalyticsLoadingView extends StatelessWidget {
+  const _AnalyticsLoadingView();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(child: CircularProgressIndicator());
+  }
+}
+
 class _AnalyticsErrorView extends StatelessWidget {
   const _AnalyticsErrorView({required this.message, required this.onRetry});
 
   final String message;
+
   final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: AppSpacing.screenPadding,
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -386,4 +533,19 @@ class _AnalyticsErrorView extends StatelessWidget {
       ),
     );
   }
+}
+
+String _formatDateTime(DateTime value) {
+  final localValue = value.toLocal();
+
+  final day = localValue.day.toString().padLeft(2, '0');
+
+  final month = localValue.month.toString().padLeft(2, '0');
+
+  final hour = localValue.hour.toString().padLeft(2, '0');
+
+  final minute = localValue.minute.toString().padLeft(2, '0');
+
+  return '$day/$month/${localValue.year} '
+      'pada $hour:$minute';
 }

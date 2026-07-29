@@ -24,50 +24,99 @@ final quizHistoryControllerProvider =
 class QuizHistoryController extends Notifier<QuizHistoryState> {
   static const int maximumLoadedAttempts = 30;
 
+  Future<void>? _activeRequest;
+
+  int _requestGeneration = 0;
+
   QuizHistoryRepository get _repository {
     return ref.read(quizHistoryRepositoryProvider);
   }
 
   @override
   QuizHistoryState build() {
+    ref.onDispose(() {
+      _requestGeneration++;
+      _activeRequest = null;
+    });
+
     return const QuizHistoryState();
   }
 
-  Future<void> loadHistory({bool forceRefresh = false}) async {
-    if (!forceRefresh &&
-        (state.status == QuizHistoryStatus.loading ||
-            state.status == QuizHistoryStatus.success)) {
-      return;
+  Future<void> loadHistory({bool forceRefresh = false}) {
+    final currentRequest = _activeRequest;
+
+    if (!forceRefresh && currentRequest != null) {
+      return currentRequest;
     }
 
-    state = state.copyWith(
+    if (!forceRefresh && state.status == QuizHistoryStatus.success) {
+      return Future<void>.value();
+    }
+
+    late final Future<void> request;
+
+    request = _loadHistoryInternal().whenComplete(() {
+      if (identical(_activeRequest, request)) {
+        _activeRequest = null;
+      }
+    });
+
+    _activeRequest = request;
+
+    return request;
+  }
+
+  Future<void> _loadHistoryInternal() async {
+    final requestGeneration = ++_requestGeneration;
+
+    final existingAttempts = state.attempts;
+
+    final existingTotalCount = state.totalCount;
+
+    final existingLastUpdated = state.lastUpdated;
+
+    state = QuizHistoryState(
       status: QuizHistoryStatus.loading,
-      clearErrorMessage: true,
+      attempts: existingAttempts,
+      totalCount: existingTotalCount,
+      lastUpdated: existingLastUpdated,
     );
+
+    late final QuizHistoryState resultState;
 
     try {
       final snapshot = await _repository.fetchHistory(
         limit: maximumLoadedAttempts,
       );
 
-      state = QuizHistoryState(
+      resultState = QuizHistoryState(
         status: QuizHistoryStatus.success,
         attempts: snapshot.attempts,
         totalCount: snapshot.totalCount,
         lastUpdated: snapshot.generatedAt,
       );
     } on QuizHistoryFailure catch (error) {
-      state = QuizHistoryState(
+      resultState = QuizHistoryState(
         status: QuizHistoryStatus.failure,
+        attempts: existingAttempts,
+        totalCount: existingTotalCount,
+        lastUpdated: existingLastUpdated,
         errorMessage: error.message,
       );
     } catch (_) {
-      state = const QuizHistoryState(
+      resultState = QuizHistoryState(
         status: QuizHistoryStatus.failure,
+        attempts: existingAttempts,
+        totalCount: existingTotalCount,
+        lastUpdated: existingLastUpdated,
         errorMessage:
             'Sejarah kuiz tidak dapat '
             'dimuatkan.',
       );
+    }
+
+    if (requestGeneration == _requestGeneration) {
+      state = resultState;
     }
   }
 
@@ -97,6 +146,8 @@ class QuizHistoryController extends Notifier<QuizHistoryState> {
   }
 
   void _upsertAttemptLocally(QuizAttempt attempt) {
+    _invalidatePendingRequest();
+
     final alreadyExists = state.attempts.any((existingAttempt) {
       return existingAttempt.id == attempt.id;
     });
@@ -131,68 +182,84 @@ class QuizHistoryController extends Notifier<QuizHistoryState> {
   }
 
   Future<bool> deleteAttempt(String attemptId) async {
+    final operationGeneration = _beginStateOperation();
+
     try {
       await _repository.deleteAttempt(attemptId);
 
-      final updatedAttempts = state.attempts
-          .where((attempt) {
-            return attempt.id != attemptId;
-          })
-          .toList(growable: false);
+      if (operationGeneration == _requestGeneration) {
+        final updatedAttempts = state.attempts
+            .where((attempt) {
+              return attempt.id != attemptId;
+            })
+            .toList(growable: false);
 
-      final updatedTotal = state.totalCount > 0 ? state.totalCount - 1 : 0;
+        final updatedTotal = state.totalCount > 0 ? state.totalCount - 1 : 0;
 
-      state = QuizHistoryState(
-        status: QuizHistoryStatus.success,
-        attempts: List<QuizAttempt>.unmodifiable(updatedAttempts),
-        totalCount: updatedTotal,
-        lastUpdated: DateTime.now(),
-      );
+        state = QuizHistoryState(
+          status: QuizHistoryStatus.success,
+          attempts: List<QuizAttempt>.unmodifiable(updatedAttempts),
+          totalCount: updatedTotal,
+          lastUpdated: DateTime.now(),
+        );
+      }
 
       return true;
     } on QuizHistoryFailure catch (error) {
-      state = state.copyWith(
-        status: QuizHistoryStatus.success,
-        errorMessage: error.message,
-      );
+      if (operationGeneration == _requestGeneration) {
+        state = state.copyWith(
+          status: QuizHistoryStatus.success,
+          errorMessage: error.message,
+        );
+      }
 
       return false;
     } catch (_) {
-      state = state.copyWith(
-        status: QuizHistoryStatus.success,
-        errorMessage:
-            'Rekod kuiz tidak dapat '
-            'dipadamkan.',
-      );
+      if (operationGeneration == _requestGeneration) {
+        state = state.copyWith(
+          status: QuizHistoryStatus.success,
+          errorMessage:
+              'Rekod kuiz tidak dapat '
+              'dipadamkan.',
+        );
+      }
 
       return false;
     }
   }
 
   Future<bool> clearHistory() async {
+    final operationGeneration = _beginStateOperation();
+
     try {
       await _repository.clearHistory();
 
-      state = QuizHistoryState(
-        status: QuizHistoryStatus.success,
-        lastUpdated: DateTime.now(),
-      );
+      if (operationGeneration == _requestGeneration) {
+        state = QuizHistoryState(
+          status: QuizHistoryStatus.success,
+          lastUpdated: DateTime.now(),
+        );
+      }
 
       return true;
     } on QuizHistoryFailure catch (error) {
-      state = state.copyWith(
-        status: QuizHistoryStatus.success,
-        errorMessage: error.message,
-      );
+      if (operationGeneration == _requestGeneration) {
+        state = state.copyWith(
+          status: QuizHistoryStatus.success,
+          errorMessage: error.message,
+        );
+      }
 
       return false;
     } catch (_) {
-      state = state.copyWith(
-        status: QuizHistoryStatus.success,
-        errorMessage:
-            'Sejarah kuiz tidak dapat '
-            'dipadamkan.',
-      );
+      if (operationGeneration == _requestGeneration) {
+        state = state.copyWith(
+          status: QuizHistoryStatus.success,
+          errorMessage:
+              'Sejarah kuiz tidak dapat '
+              'dipadamkan.',
+        );
+      }
 
       return false;
     }
@@ -203,6 +270,20 @@ class QuizHistoryController extends Notifier<QuizHistoryState> {
   }
 
   void reset() {
+    _invalidatePendingRequest();
+
     state = const QuizHistoryState();
+  }
+
+  int _beginStateOperation() {
+    _requestGeneration++;
+    _activeRequest = null;
+
+    return _requestGeneration;
+  }
+
+  void _invalidatePendingRequest() {
+    _requestGeneration++;
+    _activeRequest = null;
   }
 }

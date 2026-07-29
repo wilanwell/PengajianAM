@@ -22,47 +22,91 @@ final topicAnalyticsControllerProvider =
     );
 
 class TopicAnalyticsController extends Notifier<TopicAnalyticsState> {
+  Future<void>? _activeRequest;
+
+  int _requestGeneration = 0;
+
   TopicAnalyticsRepository get _repository {
     return ref.read(topicAnalyticsRepositoryProvider);
   }
 
   @override
   TopicAnalyticsState build() {
+    ref.onDispose(() {
+      _requestGeneration++;
+      _activeRequest = null;
+    });
+
     return const TopicAnalyticsState();
   }
 
-  Future<void> loadAnalytics({bool forceRefresh = false}) async {
-    if (!forceRefresh &&
-        (state.status == TopicAnalyticsStatus.loading ||
-            state.status == TopicAnalyticsStatus.success)) {
-      return;
+  Future<void> loadAnalytics({bool forceRefresh = false}) {
+    final currentRequest = _activeRequest;
+
+    if (!forceRefresh && currentRequest != null) {
+      return currentRequest;
     }
 
-    state = state.copyWith(
+    if (!forceRefresh && state.status == TopicAnalyticsStatus.success) {
+      return Future<void>.value();
+    }
+
+    late final Future<void> request;
+
+    request = _loadInternal().whenComplete(() {
+      if (identical(_activeRequest, request)) {
+        _activeRequest = null;
+      }
+    });
+
+    _activeRequest = request;
+
+    return request;
+  }
+
+  Future<void> _loadInternal() async {
+    final requestGeneration = ++_requestGeneration;
+
+    final existingPerformances = state.performances;
+
+    final existingLastUpdated = state.lastUpdated;
+
+    state = TopicAnalyticsState(
       status: TopicAnalyticsStatus.loading,
-      clearErrorMessage: true,
+      performances: existingPerformances,
+      lastUpdated: existingLastUpdated,
     );
+
+    late final TopicAnalyticsState resultState;
 
     try {
       final snapshot = await _repository.fetchAnalytics();
 
-      state = TopicAnalyticsState(
+      resultState = TopicAnalyticsState(
         status: TopicAnalyticsStatus.success,
         performances: snapshot.performances,
         lastUpdated: snapshot.generatedAt,
       );
     } on TopicAnalyticsFailure catch (error) {
-      state = TopicAnalyticsState(
+      resultState = TopicAnalyticsState(
         status: TopicAnalyticsStatus.failure,
+        performances: existingPerformances,
+        lastUpdated: existingLastUpdated,
         errorMessage: error.message,
       );
     } catch (_) {
-      state = const TopicAnalyticsState(
+      resultState = TopicAnalyticsState(
         status: TopicAnalyticsStatus.failure,
+        performances: existingPerformances,
+        lastUpdated: existingLastUpdated,
         errorMessage:
             'Analitik prestasi tidak dapat '
             'dimuatkan.',
       );
+    }
+
+    if (requestGeneration == _requestGeneration) {
+      state = resultState;
     }
   }
 
@@ -71,6 +115,9 @@ class TopicAnalyticsController extends Notifier<TopicAnalyticsState> {
   }
 
   void reset() {
+    _requestGeneration++;
+    _activeRequest = null;
+
     state = const TopicAnalyticsState();
   }
 }
