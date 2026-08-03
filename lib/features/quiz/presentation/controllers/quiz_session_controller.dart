@@ -18,6 +18,7 @@ import '../../domain/exceptions/quiz_draft_failure.dart';
 import '../../domain/exceptions/quiz_failure.dart';
 import '../../domain/repositories/quiz_draft_repository.dart';
 import '../../domain/repositories/quiz_repository.dart';
+import '../coordinators/quiz_session_draft_coordinator.dart';
 import 'quiz_history_controller.dart';
 import 'quiz_session_state.dart';
 
@@ -755,23 +756,12 @@ class QuizSessionController extends Notifier<QuizSessionState> {
       sessionId: draft.sessionId,
     );
 
-    if (!validation.isActive) {
-      return null;
-    }
+    final isCompatible = QuizSessionDraftCoordinator.isValidationCompatible(
+      draft: draft,
+      validation: validation,
+    );
 
-    if (validation.topicId != draft.topicId) {
-      return null;
-    }
-
-    if (validation.mode != draft.mode) {
-      return null;
-    }
-
-    if (validation.source != draft.source) {
-      return null;
-    }
-
-    if (validation.questionCount != draft.questionCount) {
+    if (!isCompatible) {
       return null;
     }
 
@@ -779,47 +769,12 @@ class QuizSessionController extends Notifier<QuizSessionState> {
   }
 
   QuizDraft? _createDraftSnapshot() {
-    if (state.status != QuizSessionStatus.ready) {
-      return null;
-    }
-
-    final sessionId = state.sessionId;
-
-    final topicId = state.topicId;
-
-    final startedAt = _startedAt;
-
-    final sessionExpiresAt = state.sessionExpiresAt;
-
-    if (sessionId == null ||
-        sessionId.trim().isEmpty ||
-        topicId == null ||
-        topicId.trim().isEmpty ||
-        startedAt == null ||
-        sessionExpiresAt == null ||
-        state.questions.isEmpty) {
-      return null;
-    }
-
-    try {
-      return QuizDraft(
-        sessionId: sessionId,
-        topicId: topicId,
-        mode: state.mode,
-        source: state.source,
-        questionCount: state.questions.length,
-        questions: List.unmodifiable(state.questions),
-        currentQuestionIndex: state.currentQuestionIndex,
-        selectedAnswers: Map<String, int>.unmodifiable(state.selectedAnswers),
-        flaggedQuestionIds: Set<String>.unmodifiable(state.flaggedQuestionIds),
-        startedAt: startedAt,
-        sessionExpiresAt: sessionExpiresAt,
-        examDeadlineAt: _examDeadlineAt,
-        savedAt: DateTime.now(),
-      );
-    } on FormatException {
-      return null;
-    }
+    return QuizSessionDraftCoordinator.createSnapshot(
+      state: state,
+      startedAt: _startedAt,
+      examDeadlineAt: _examDeadlineAt,
+      savedAt: DateTime.now(),
+    );
   }
 
   Future<void> _saveCurrentDraftSafely() async {
