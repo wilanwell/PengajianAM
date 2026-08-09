@@ -21,6 +21,7 @@ import '../../domain/repositories/quiz_repository.dart';
 import '../coordinators/quiz_draft_persistence_coordinator.dart';
 import '../coordinators/quiz_session_draft_coordinator.dart';
 import '../coordinators/quiz_session_timing_coordinator.dart';
+import '../coordinators/quiz_session_timer_coordinator.dart';
 import 'quiz_history_controller.dart';
 import 'quiz_session_state.dart';
 
@@ -68,8 +69,8 @@ final quizSessionControllerProvider =
     );
 
 class QuizSessionController extends Notifier<QuizSessionState> {
-  Timer? _timer;
-
+  final QuizSessionTimerCoordinator _timerCoordinator =
+      QuizSessionTimerCoordinator();
   DateTime? _startedAt;
   DateTime? _examDeadlineAt;
 
@@ -669,34 +670,27 @@ class QuizSessionController extends Notifier<QuizSessionState> {
   }
 
   void _startTimer() {
-    _cancelTimer();
-
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (state.status != QuizSessionStatus.ready ||
-          state.remainingSeconds == null) {
-        _cancelTimer();
-
-        return;
-      }
-
-      final nextValue = state.remainingSeconds! - 1;
-
-      if (nextValue <= 0) {
-        state = state.copyWith(remainingSeconds: 0);
-
+    _timerCoordinator.start(
+      canContinue: () {
+        return state.status == QuizSessionStatus.ready &&
+            state.remainingSeconds != null;
+      },
+      readRemainingSeconds: () {
+        return state.remainingSeconds;
+      },
+      onTick: (remainingSeconds) {
+        state = state.copyWith(remainingSeconds: remainingSeconds);
+      },
+      onExpired: () {
         /*
-           * Server v2 akan menentukan sendiri
-           * sama ada submission benar-benar
-           * auto-submitted berdasarkan deadline
-           * server.
-           */
+         * Server v2 akan menentukan sendiri
+         * sama ada submission benar-benar
+         * auto-submitted berdasarkan deadline
+         * server.
+         */
         unawaited(submitQuiz(autoSubmitted: true));
-
-        return;
-      }
-
-      state = state.copyWith(remainingSeconds: nextValue);
-    });
+      },
+    );
   }
 
   Future<QuizSessionValidation?> _loadResumableValidation(
@@ -746,7 +740,6 @@ class QuizSessionController extends Notifier<QuizSessionState> {
   }
 
   void _cancelTimer() {
-    _timer?.cancel();
-    _timer = null;
+    _timerCoordinator.cancel();
   }
 }
