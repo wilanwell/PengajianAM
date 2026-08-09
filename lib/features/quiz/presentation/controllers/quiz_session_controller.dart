@@ -22,6 +22,7 @@ import '../coordinators/quiz_draft_persistence_coordinator.dart';
 import '../coordinators/quiz_session_draft_coordinator.dart';
 import '../coordinators/quiz_session_timing_coordinator.dart';
 import '../coordinators/quiz_session_timer_coordinator.dart';
+import '../coordinators/quiz_submission_sync_coordinator.dart';
 import 'quiz_history_controller.dart';
 import 'quiz_session_state.dart';
 
@@ -589,28 +590,24 @@ class QuizSessionController extends Notifier<QuizSessionState> {
         );
       }
 
-      ref.invalidate(mistakeBookControllerProvider);
-      ref.invalidate(mistakeBookTopicControllerProvider);
-
-      await _deleteDraftSafely();
-
-      if (state.source == QuizSessionSource.standard) {
-        try {
-          await ref
+      await QuizSubmissionSyncCoordinator.synchronize(
+        submission: submission,
+        source: state.source,
+        invalidateMistakeBook: () {
+          ref.invalidate(mistakeBookControllerProvider);
+          ref.invalidate(mistakeBookTopicControllerProvider);
+        },
+        deleteDraft: _deleteDraftSafely,
+        syncProgress: (submission) {
+          return ref
               .read(userProgressControllerProvider.notifier)
               .recordServerQuizResult(
                 result: submission.result,
                 earnedXp: submission.earnedXp,
               );
-        } catch (_) {
-          /*
-           * Progress sebenar telah disimpan
-           * secara transaction pada server.
-           */
-        }
-
-        try {
-          await ref
+        },
+        syncHistory: (submission) {
+          return ref
               .read(quizHistoryControllerProvider.notifier)
               .recordServerAttempt(
                 attemptId: submission.attemptId,
@@ -618,13 +615,8 @@ class QuizSessionController extends Notifier<QuizSessionState> {
                 earnedXp: submission.earnedXp,
                 result: submission.result,
               );
-        } catch (_) {
-          /*
-           * Attempt sebenar telah disimpan
-           * secara transaction pada server.
-           */
-        }
-      }
+        },
+      );
 
       state = state.copyWith(
         status: QuizSessionStatus.completed,
