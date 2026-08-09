@@ -18,6 +18,7 @@ import '../../domain/exceptions/quiz_draft_failure.dart';
 import '../../domain/exceptions/quiz_failure.dart';
 import '../../domain/repositories/quiz_draft_repository.dart';
 import '../../domain/repositories/quiz_repository.dart';
+import '../coordinators/quiz_draft_persistence_coordinator.dart';
 import '../coordinators/quiz_session_draft_coordinator.dart';
 import 'quiz_history_controller.dart';
 import 'quiz_session_state.dart';
@@ -71,14 +72,20 @@ class QuizSessionController extends Notifier<QuizSessionState> {
   DateTime? _startedAt;
   DateTime? _examDeadlineAt;
 
-  Future<void> _draftOperationQueue = Future<void>.value();
-
   QuizRepository get _repository {
     return ref.read(quizRepositoryProvider);
   }
 
   QuizDraftRepository get _draftRepository {
     return ref.read(quizDraftRepositoryProvider);
+  }
+
+  QuizDraftPersistenceCoordinator? _draftPersistenceCoordinator;
+
+  QuizDraftPersistenceCoordinator get _draftPersistence {
+    return _draftPersistenceCoordinator ??= QuizDraftPersistenceCoordinator(
+      _draftRepository,
+    );
   }
 
   String? get _draftOwnerUserId {
@@ -565,7 +572,7 @@ class QuizSessionController extends Notifier<QuizSessionState> {
      * Tunggu semua operasi autosave yang telah
      * dimasukkan ke dalam queue.
      */
-    await _draftOperationQueue;
+    await _draftPersistence.waitForPendingOperations();
 
     /*
      * Simpan snapshot terakhir sebelum logout.
@@ -777,73 +784,22 @@ class QuizSessionController extends Notifier<QuizSessionState> {
     );
   }
 
-  Future<void> _saveCurrentDraftSafely() async {
-    final ownerUserId = _draftOwnerUserId;
-
-    final draft = _createDraftSnapshot();
-
-    if (ownerUserId == null || draft == null) {
-      return;
-    }
-
-    try {
-      await _draftRepository.saveDraft(ownerUserId: ownerUserId, draft: draft);
-    } catch (_) {
-      /*
-       * Kegagalan autosave tidak menghentikan
-       * kuiz atau proses logout.
-       */
-    }
+  Future<void> _saveCurrentDraftSafely() {
+    return _draftPersistence.saveSafely(
+      ownerUserId: _draftOwnerUserId,
+      draft: _createDraftSnapshot(),
+    );
   }
 
   void _queueDraftSave() {
-    final ownerUserId = _draftOwnerUserId;
-
-    final draft = _createDraftSnapshot();
-
-    if (ownerUserId == null || draft == null) {
-      return;
-    }
-
-    /*
-     * Owner ID dan snapshot ditentukan ketika
-     * operasi dimasukkan ke queue.
-     *
-     * Ini mengelakkan pertukaran akaun menukar
-     * pemilik operasi save yang telah beratur.
-     */
-    _draftOperationQueue = _draftOperationQueue.then((_) async {
-      try {
-        await _draftRepository.saveDraft(
-          ownerUserId: ownerUserId,
-          draft: draft,
-        );
-      } catch (_) {
-        /*
-           * Queue diteruskan walaupun satu
-           * operasi autosave gagal.
-           */
-      }
-    });
+    _draftPersistence.queueSave(
+      ownerUserId: _draftOwnerUserId,
+      draft: _createDraftSnapshot(),
+    );
   }
 
-  Future<void> _deleteDraftSafely() async {
-    final ownerUserId = _draftOwnerUserId;
-
-    if (ownerUserId == null) {
-      return;
-    }
-
-    try {
-      await _draftOperationQueue;
-
-      await _draftRepository.deleteDraft(ownerUserId: ownerUserId);
-    } catch (_) {
-      /*
-       * Kegagalan operasi draft tidak
-       * membatalkan submission kuiz.
-       */
-    }
+  Future<void> _deleteDraftSafely() {
+    return _draftPersistence.deleteSafely(ownerUserId: _draftOwnerUserId);
   }
 
   int _remainingSecondsBetween({
