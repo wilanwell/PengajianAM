@@ -20,6 +20,7 @@ import '../../domain/repositories/quiz_draft_repository.dart';
 import '../../domain/repositories/quiz_repository.dart';
 import '../coordinators/quiz_draft_persistence_coordinator.dart';
 import '../coordinators/quiz_session_draft_coordinator.dart';
+import '../coordinators/quiz_session_timing_coordinator.dart';
 import 'quiz_history_controller.dart';
 import 'quiz_session_state.dart';
 
@@ -227,52 +228,16 @@ class QuizSessionController extends Notifier<QuizSessionState> {
         return;
       }
 
-      final localNow = DateTime.now();
+      final timing = QuizSessionTimingCoordinator.resolveNewSessionTiming(
+        session: quizSession,
+        requestedMode: mode,
+        localNow: DateTime.now(),
+      );
 
-      /*
-       * Dalam production v2, kedua-dua masa
-       * ini datang daripada server.
-       *
-       * localNow hanya digunakan sebagai
-       * fallback untuk fake repository lama
-       * dalam unit test.
-       */
-      final serverTime = quizSession.serverTime ?? localNow;
+      final remainingSeconds = timing.remainingSeconds;
 
-      final startedAt = quizSession.createdAt ?? serverTime;
-
-      final hasServerTiming =
-          quizSession.serverTime != null && quizSession.createdAt != null;
-
-      /*
-       * Exam Mode mesti menggunakan deadline
-       * daripada server.
-       *
-       * expiresAt untuk response v2 juga ialah
-       * effective Exam Mode deadline.
-       *
-       * Pengiraan 90 saat setiap soalan hanya
-       * dikekalkan sebagai fallback untuk fake
-       * repository lama dalam tests.
-       */
-      final examDeadlineAt = mode == QuizMode.exam
-          ? (quizSession.examDeadlineAt ??
-                (hasServerTiming
-                    ? quizSession.expiresAt
-                    : startedAt.add(
-                        Duration(seconds: quizSession.questions.length * 90),
-                      )))
-          : null;
-
-      final remainingSeconds = examDeadlineAt == null
-          ? null
-          : _remainingSecondsBetween(
-              deadline: examDeadlineAt,
-              currentTime: serverTime,
-            );
-
-      _startedAt = startedAt;
-      _examDeadlineAt = examDeadlineAt;
+      _startedAt = timing.startedAt;
+      _examDeadlineAt = timing.examDeadlineAt;
 
       state = QuizSessionState(
         status: QuizSessionStatus.ready,
@@ -503,39 +468,17 @@ class QuizSessionController extends Notifier<QuizSessionState> {
      * createdAt dan expiresAt daripada server
      * menjadi autoriti apabila tersedia.
      */
-    final effectiveStartedAt = validation.createdAt ?? draft.startedAt;
+    final timing = QuizSessionTimingCoordinator.resolveRestoredSessionTiming(
+      draft: draft,
+      validation: validation,
+    );
 
-    final serverExpiresAt = validation.expiresAt ?? draft.sessionExpiresAt;
+    final remainingSeconds = timing.remainingSeconds;
 
-    DateTime? effectiveExamDeadlineAt;
+    final serverExpiresAt = timing.sessionExpiresAt;
 
-    if (draft.mode == QuizMode.exam) {
-      final draftDeadline = draft.examDeadlineAt;
-
-      /*
-       * Jangan benarkan data draft memanjangkan
-       * deadline server.
-       *
-       * Jika deadline draft lebih awal, gunakan
-       * nilai lebih awal itu. Jika lebih lewat,
-       * gunakan expiry server.
-       */
-      if (draftDeadline != null && draftDeadline.isBefore(serverExpiresAt)) {
-        effectiveExamDeadlineAt = draftDeadline;
-      } else {
-        effectiveExamDeadlineAt = serverExpiresAt;
-      }
-    }
-
-    final remainingSeconds = effectiveExamDeadlineAt == null
-        ? null
-        : _remainingSecondsBetween(
-            deadline: effectiveExamDeadlineAt,
-            currentTime: validation.serverTime,
-          );
-
-    _startedAt = effectiveStartedAt;
-    _examDeadlineAt = effectiveExamDeadlineAt;
+    _startedAt = timing.startedAt;
+    _examDeadlineAt = timing.examDeadlineAt;
 
     state = QuizSessionState(
       status: QuizSessionStatus.ready,
@@ -800,25 +743,6 @@ class QuizSessionController extends Notifier<QuizSessionState> {
 
   Future<void> _deleteDraftSafely() {
     return _draftPersistence.deleteSafely(ownerUserId: _draftOwnerUserId);
-  }
-
-  int _remainingSecondsBetween({
-    required DateTime deadline,
-    required DateTime currentTime,
-  }) {
-    final remainingMilliseconds = deadline
-        .difference(currentTime)
-        .inMilliseconds;
-
-    if (remainingMilliseconds <= 0) {
-      return 0;
-    }
-
-    /*
-     * Gunakan ceiling supaya baki 1–999 ms
-     * masih dipaparkan sebagai satu saat.
-     */
-    return (remainingMilliseconds + 999) ~/ 1000;
   }
 
   void _cancelTimer() {
