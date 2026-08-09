@@ -20,6 +20,7 @@ import '../../domain/repositories/quiz_draft_repository.dart';
 import '../../domain/repositories/quiz_repository.dart';
 import '../coordinators/quiz_draft_persistence_coordinator.dart';
 import '../coordinators/quiz_session_draft_coordinator.dart';
+import '../coordinators/quiz_session_start_coordinator.dart';
 import '../coordinators/quiz_session_timing_coordinator.dart';
 import '../coordinators/quiz_session_timer_coordinator.dart';
 import '../coordinators/quiz_submission_sync_coordinator.dart';
@@ -202,39 +203,34 @@ class QuizSessionController extends Notifier<QuizSessionState> {
     try {
       final quizSession = await loadSession();
 
-      if (quizSession.questions.isEmpty) {
-        state = QuizSessionState(
-          status: QuizSessionStatus.failure,
-          topicId: topicId,
-          mode: mode,
-          source: source,
-          requestedQuestionCount: questionCount,
-          errorMessage: emptyMessage,
-        );
-
-        return;
-      }
-
-      if (quizSession.source != source) {
-        state = QuizSessionState(
-          status: QuizSessionStatus.failure,
-          topicId: topicId,
-          mode: mode,
-          source: source,
-          requestedQuestionCount: questionCount,
-          errorMessage:
-              'Sumber sesi daripada server '
-              'tidak sepadan.',
-        );
-
-        return;
-      }
-
-      final timing = QuizSessionTimingCoordinator.resolveNewSessionTiming(
+      final startResolution = QuizSessionStartCoordinator.resolve(
         session: quizSession,
         requestedMode: mode,
+        expectedSource: source,
         localNow: DateTime.now(),
       );
+
+      final rejectionReason = startResolution.rejectionReason;
+
+      if (rejectionReason != null) {
+        final errorMessage =
+            rejectionReason == QuizSessionStartRejectionReason.emptyQuestions
+            ? emptyMessage
+            : 'Sumber sesi daripada server tidak sepadan.';
+
+        state = QuizSessionState(
+          status: QuizSessionStatus.failure,
+          topicId: topicId,
+          mode: mode,
+          source: source,
+          requestedQuestionCount: questionCount,
+          errorMessage: errorMessage,
+        );
+
+        return;
+      }
+
+      final timing = startResolution.timing!;
 
       final remainingSeconds = timing.remainingSeconds;
 
