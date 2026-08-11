@@ -13,11 +13,10 @@ import '../../domain/entities/quiz_draft.dart';
 import '../../domain/entities/quiz_mode.dart';
 import '../../domain/entities/quiz_session.dart';
 import '../../domain/entities/quiz_session_source.dart';
-import '../../domain/entities/quiz_session_validation.dart';
-import '../../domain/exceptions/quiz_draft_failure.dart';
 import '../../domain/exceptions/quiz_failure.dart';
 import '../../domain/repositories/quiz_draft_repository.dart';
 import '../../domain/repositories/quiz_repository.dart';
+import '../coordinators/quiz_draft_recovery_coordinator.dart';
 import '../coordinators/quiz_draft_persistence_coordinator.dart';
 import '../coordinators/quiz_session_draft_coordinator.dart';
 import '../coordinators/quiz_session_start_coordinator.dart';
@@ -82,6 +81,15 @@ class QuizSessionController extends Notifier<QuizSessionState> {
 
   QuizDraftRepository get _draftRepository {
     return ref.read(quizDraftRepositoryProvider);
+  }
+
+  QuizDraftRecoveryCoordinator? _draftRecoveryCoordinator;
+
+  QuizDraftRecoveryCoordinator get _draftRecovery {
+    return _draftRecoveryCoordinator ??= QuizDraftRecoveryCoordinator(
+      _repository,
+      _draftRepository,
+    );
   }
 
   QuizDraftPersistenceCoordinator? _draftPersistenceCoordinator;
@@ -373,56 +381,7 @@ class QuizSessionController extends Notifier<QuizSessionState> {
       return null;
     }
 
-    QuizDraft? draft;
-
-    try {
-      draft = await _draftRepository.loadDraft(ownerUserId: ownerUserId);
-    } on QuizDraftFailure {
-      rethrow;
-    } catch (_) {
-      throw const QuizDraftFailure(
-        'Draft kuiz tidak dapat dibaca '
-        'daripada peranti.',
-      );
-    }
-
-    /*
-     * Null bermaksud pengguna memang tidak
-     * mempunyai draft pada peranti.
-     */
-    if (draft == null) {
-      return null;
-    }
-
-    try {
-      final validation = await _loadResumableValidation(draft);
-
-      if (validation == null) {
-        await _draftRepository.deleteDraft(ownerUserId: ownerUserId);
-
-        return null;
-      }
-
-      return draft;
-    } on QuizFailure catch (error) {
-      /*
-       * Kegagalan rangkaian tidak memadamkan
-       * draft pengguna.
-       */
-      throw QuizDraftFailure(
-        '${error.message} '
-        'Sesi tersimpan anda masih selamat '
-        'pada peranti.',
-      );
-    } on QuizDraftFailure {
-      rethrow;
-    } catch (_) {
-      throw const QuizDraftFailure(
-        'Sesi kuiz tersimpan tidak dapat '
-        'disahkan sekarang. Draft anda masih '
-        'selamat pada peranti.',
-      );
-    }
+    return _draftRecovery.loadAvailableDraft(ownerUserId: ownerUserId);
   }
 
   Future<bool> restoreDraft(QuizDraft draft) async {
@@ -432,32 +391,13 @@ class QuizSessionController extends Notifier<QuizSessionState> {
       return false;
     }
 
-    late final QuizSessionValidation validation;
+    final validation = await _draftRecovery.validateResumableDraft(
+      ownerUserId: ownerUserId,
+      draft: draft,
+    );
 
-    try {
-      final resolvedValidation = await _loadResumableValidation(draft);
-
-      if (resolvedValidation == null) {
-        await _draftRepository.deleteDraft(ownerUserId: ownerUserId);
-
-        return false;
-      }
-
-      validation = resolvedValidation;
-    } on QuizFailure catch (error) {
-      throw QuizDraftFailure(
-        '${error.message} '
-        'Sesi tersimpan anda masih selamat '
-        'pada peranti.',
-      );
-    } on QuizDraftFailure {
-      rethrow;
-    } catch (_) {
-      throw const QuizDraftFailure(
-        'Sesi kuiz tersimpan tidak dapat '
-        'disahkan sekarang. Draft anda masih '
-        'selamat pada peranti.',
-      );
+    if (validation == null) {
+      return false;
     }
 
     _cancelTimer();
@@ -679,25 +619,6 @@ class QuizSessionController extends Notifier<QuizSessionState> {
         unawaited(submitQuiz(autoSubmitted: true));
       },
     );
-  }
-
-  Future<QuizSessionValidation?> _loadResumableValidation(
-    QuizDraft draft,
-  ) async {
-    final validation = await _repository.validateQuizSession(
-      sessionId: draft.sessionId,
-    );
-
-    final isCompatible = QuizSessionDraftCoordinator.isValidationCompatible(
-      draft: draft,
-      validation: validation,
-    );
-
-    if (!isCompatible) {
-      return null;
-    }
-
-    return validation;
   }
 
   QuizDraft? _createDraftSnapshot() {
